@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -e
+gitleaks git --staged --redact
+npx --no-install lint-staged

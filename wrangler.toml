@@ -1,0 +1,23 @@
+name = "tributary-spike"
+main = "src/index.ts"
+compatibility_date = "2026-10-03"
+
+[[artifacts]]
+binding = "ARTIFACTS"
+namespace = "default"
+
+[[durable_objects.bindings]]
+name = "CLAIM_REGISTRY"
+class_name = "ClaimRegistry"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ClaimRegistry"]
+
+[[queues.producers]]
+queue = "merge-queue"
+binding = "MERGE_QUEUE"
+
+[[queues.consumers]]
+queue = "merge-queue"
+max_concurrency = 1
