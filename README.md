@@ -69,6 +69,19 @@ Step-0 spike + milestone scaffolding (milestones 1–6 in skeleton form):
 
 Known assumptions and doc findings are logged in [DECISIONS.md](./DECISIONS.md).
 
+## Prior art
+
+No existing system combines prevention, isolation, and a speculative merge
+queue: [openorchestrator](https://github.com/gitpcl/openorchestrator) warns on
+worktree overlap but never enforces; [weave](https://github.com/ataraxy-labs/weave)
+resolves semantic conflicts reactively at merge time with no scheduling;
+[openagents](https://github.com/openagents-org/openagents) coordinates agents
+conversationally, not via code ownership; GitLab's Duo conflict resolver
+([work item #20688](https://gitlab.com/groups/gitlab-org/-/work_items/20688))
+validates LLM-resolver-as-last-resort but stays MR-centric. Tributary's thesis —
+scheduling first, negotiation last — is the gap between them. Details in
+[DECISIONS.md](./DECISIONS.md).
+
 ## Safety toolchain
 
 ESLint + Prettier + husky hooks: `pre-commit` runs a gitleaks staged secret
