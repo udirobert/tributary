@@ -100,7 +100,12 @@ Recorded as built; these supersede the Step-0 plan above where they differ.
    both heads into a `MemoryFS` repo, runs a real three-way merge with
    `abortOnConflict`, applies a test gate, and only then advances trunk. A
    Sandbox-run test suite is the production path; the spike's gate is a
-   `package.json` parse of the merged tree.
+   `package.json` parse of the merged tree **plus a semantic gate**: acorn
+   parses every `.js` file in the merged tree (pure JS, no Node fs, so it
+   runs inside a Worker where tsc can't) and rejects arity mismatches between
+   exported functions and bare-identifier call sites — the signature-change-
+   breaks-caller conflict that `git merge` reports as clean. The simulation's
+   Agent-Echo exercises it every run.
 2. **The resolver produces content; the merge engine lands it.** The original
    plan called for per-hunk resolution committed back to the task repo. Two
    discoveries changed that:

@@ -29,7 +29,10 @@ interface Task {
 const RENDER = "exports.render = (name) => `<h1>${name}</h1>`;\n";
 
 // Alpha and Bravo both write the same line of src/index.js — the same-file
-// conflict the resolver exists for. Charlie and Delta are disjoint.
+// conflict the resolver exists for. Charlie and Delta are disjoint. Echo is
+// the semantic beat: it changes greet()'s signature while src/handlers.js on
+// trunk calls it with one arg — textually clean for git, caught by the
+// semantic gate.
 const TASKS: Task[] = [
 	{
 		agentId: "Agent-Alpha",
@@ -45,6 +48,14 @@ const TASKS: Task[] = [
 		edit: {
 			path: "src/index.js",
 			content: `${RENDER}exports.version = '3.1.10-bravo';\n`,
+		},
+	},
+	{
+		agentId: "Agent-Echo",
+		footprint: ["src/greet.js"],
+		edit: {
+			path: "src/greet.js",
+			content: "exports.greet = (name, greeting) => `${greeting}, ${name}!`;\n",
 		},
 	},
 	{

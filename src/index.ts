@@ -623,7 +623,10 @@ export default {
 				const resolution = await resolveConflict(
 					task.agentId,
 					task.taskRepo,
-					outcome.status === "conflict" ? outcome.conflictedFiles : [],
+					// Conflicts carry real conflicted paths; gate failures pass the
+					// task's changed files so the resolver has something to reason
+					// about instead of an empty list.
+					outcome.status === "conflict" ? outcome.conflictedFiles : changed,
 					{
 						ai: env.AI,
 						sides: outcome.status === "conflict" ? outcome.sides : undefined,

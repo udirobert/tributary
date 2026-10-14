@@ -32,7 +32,12 @@
 import git from "isomorphic-git";
 import { DurableObject } from "cloudflare:workers";
 import { MemoryFS } from "./memory-fs";
-import { mergeBranches, runTestGate, type MergeOutcome } from "./merge";
+import {
+	mergeBranches,
+	runTestGate,
+	runSemanticGate,
+	type MergeOutcome,
+} from "./merge";
 
 const DIR = "/artifacts-store";
 const TRUNK_BRANCH = "trunk";
@@ -66,6 +71,13 @@ const SEED_FILES: Record<string, string> = {
 	"src/auth.js":
 		"exports.isAuthed = (req) => Boolean(req.headers && req.headers.authorization);\n",
 	"src/db.js": "exports.connect = () => ({ query: async () => [] });\n",
+	// greet + its caller live in different files so a signature change in
+	// greet.js is textually clean for git but semantically breaking for the
+	// caller — the class of conflict only the semantic gate can see.
+	"src/greet.js": "exports.greet = (name) => `Hello, ${name}!`;\n",
+	"src/handlers.js":
+		'const { greet } = require("./greet");\n' +
+		'exports.handle = (req) => greet("world");\n',
 };
 
 export interface LocalRepoCreds {
@@ -269,6 +281,11 @@ export class LocalArtifacts extends DurableObject {
 		return this.run(async () => {
 			await this.boot();
 			const taskBranch = this.branchFor(args.task);
+			const preMergeHead = await git.resolveRef({
+				fs: this.fs,
+				dir: DIR,
+				ref: TRUNK_BRANCH,
+			});
 
 			const outcome = await mergeBranches(
 				this.fs,
@@ -280,8 +297,34 @@ export class LocalArtifacts extends DurableObject {
 			);
 			if (outcome.status === "conflict") return outcome;
 
-			const gateFailure = await runTestGate(this.fs, DIR);
-			if (gateFailure) return { status: "failed", reason: gateFailure };
+			const gateFailure =
+				(await runTestGate(this.fs, DIR)) ??
+				(await runSemanticGate(this.fs, DIR));
+
+			if (gateFailure || outcome.status === "failed") {
+				// Rewind the trunk ref — locally the merge advanced the branch in
+				// place before the gate ran, so a failed merge would otherwise
+				// leave a red commit sitting on trunk.
+				await git.writeRef({
+					fs: this.fs,
+					dir: DIR,
+					ref: `refs/heads/${TRUNK_BRANCH}`,
+					value: preMergeHead,
+					force: true,
+				});
+				await git.checkout({
+					fs: this.fs,
+					dir: DIR,
+					ref: TRUNK_BRANCH,
+					force: true,
+				});
+				return {
+					status: "failed",
+					reason:
+						gateFailure ??
+						(outcome.status === "failed" ? outcome.reason : "unknown"),
+				};
+			}
 
 			// `merged` already advanced the trunk branch in place;
 			// `already-merged` adds nothing. Both are green.

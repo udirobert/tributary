@@ -45,6 +45,7 @@
 		"wrangler": "^4.147.0"
 	},
 	"dependencies": {
+		"acorn": "^8.19.0",
 		"isomorphic-git": "^1.42.6",
 		"memfs": "^4.80.0"
 	}

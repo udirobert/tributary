@@ -123,7 +123,10 @@ What works end-to-end:
 - ✅ Claim registry DO with overlap detection, waitlist, TTL, metrics
 - ✅ Queue-driven merge pipeline (`max_concurrency = 1`)
 - ✅ **Real** three-way merge engine (`src/merge.ts`) with four outcomes
-  (merged / already-merged / conflict / failed) and a real test gate
+  (merged / already-merged / conflict / failed), a test gate, **and a
+  semantic gate** — an acorn-based arity check that catches the conflict
+  class git can't see (signature change in one file breaking a caller in
+  another). Agent-Echo in `npm run simulate` exercises it every run.
 - ✅ Queue consumer pre-filters footprint violations before spending a merge
 - ✅ Dashboard auto-refreshes every 1.5s: trunk state with the last landed
   commit, a three-stage pipeline (prevent → integrate → negotiate), active
@@ -153,7 +156,10 @@ What's still simulated or unverified:
   is what the default config and the simulation exercise.
 - ⚠️ Resolutions are whole-file (both sides' full content, one AI call per
   file), not per-hunk. Fine for the fixture; a real tree would want hunk-level
-  granularity and a richer gate (a real test suite in a Sandbox).
+  granularity and a richer gate (a real test suite in a Sandbox). The semantic
+  gate is a real AST check, but scope-limited: exported-function arity across
+  the merged tree, bare-identifier calls only — the production shape is the
+  repo's own toolchain in a Sandbox.
 - ⚠️ `trunkStatus` reflects trunk health only — rejected merges increment
   `rejections` and invoke the resolver but never land, so trunk stays green
   by construction. Watch the `rejections` counter for rejection volume.

@@ -1,5 +1,6 @@
 import git from "isomorphic-git";
 import http from "isomorphic-git/http/web";
+import { parse } from "acorn";
 import { MemoryFS } from "./memory-fs";
 
 export interface ConflictSide {
@@ -164,6 +165,137 @@ async function readConflictSides(
 }
 
 /**
+ * Semantic gate: catches the class of conflict `git merge` can't see — a
+ * signature change in one file breaking a caller in another. Parses every
+ * .js file in the merged tree with a real JS parser (acorn — no Node fs, so
+ * it runs in a Worker where tsc can't), collects exported function arities,
+ * and rejects when a bare-identifier call passes the wrong arg count. A file
+ * that doesn't parse also fails — the merged tree must be real code.
+ *
+ * Stand-in for the production shape (repo's own checks — tsc, eslint, test
+ * suite — run in a Cloudflare Sandbox). Limitations: whole-file symbol
+ * matching, .js only, bare calls only (no `x.f()` member checks).
+ */
+export async function runSemanticGate(
+	fs: MemoryFS,
+	dir: string,
+): Promise<string | null> {
+	const files: string[] = [];
+	const walk = async (d: string): Promise<void> => {
+		for (const name of await fs.promises.readdir(d)) {
+			if (name === ".git" || name === "node_modules") continue;
+			const full = `${d}/${name}`;
+			const stat = await fs.promises.stat(full);
+			if (stat.isDirectory()) await walk(full);
+			else if (/\.(mjs|cjs|js)$/.test(name)) files.push(full);
+		}
+	};
+	await walk(dir);
+
+	interface Node {
+		type: string;
+		[key: string]: unknown;
+	}
+	const defs = new Map<string, number>();
+	const calls: { name: string; argc: number; file: string }[] = [];
+
+	const arityOf = (node: Node): number | null => {
+		if (
+			node.type === "ArrowFunctionExpression" ||
+			node.type === "FunctionExpression"
+		) {
+			return (node.params as Node[]).filter((p) => p.type !== "RestElement")
+				.length;
+		}
+		if (node.type === "AwaitExpression") {
+			return arityOf(node.argument as Node);
+		}
+		return null;
+	};
+
+	const visit = (node: Node, file: string) => {
+		if (!node || typeof node.type !== "string") return;
+		// exports.f = (...) => … / module.exports.f = function (…) {}
+		if (
+			node.type === "AssignmentExpression" &&
+			(node.left as Node).type === "MemberExpression"
+		) {
+			const left = node.left as Node;
+			const obj = left.object as Node;
+			const prop = left.property as Node;
+			const isExports =
+				(obj.type === "Identifier" &&
+					(obj.name === "exports" || obj.name === "module")) ||
+				(obj.type === "MemberExpression" &&
+					(obj.object as Node).type === "Identifier" &&
+					(obj.object as Node).name === "module" &&
+					(obj.property as Node).name === "exports");
+			if (isExports && prop.type === "Identifier") {
+				const arity = arityOf(node.right as Node);
+				if (arity !== null) defs.set(prop.name as string, arity);
+			}
+		}
+		// function f(…) {} — top-level declaration (may be exported later)
+		if (node.type === "FunctionDeclaration") {
+			const id = node.id as Node | null;
+			if (id?.type === "Identifier" && !defs.has(id.name as string)) {
+				defs.set(id.name as string, (node.params as Node[]).length);
+			}
+		}
+		// f(arg, …) — bare identifier call site
+		if (
+			node.type === "CallExpression" &&
+			(node.callee as Node).type === "Identifier" &&
+			!(node.arguments as Node[]).some((a) => a.type === "SpreadElement")
+		) {
+			calls.push({
+				name: (node.callee as Node).name as string,
+				argc: (node.arguments as Node[]).length,
+				file,
+			});
+		}
+		for (const value of Object.values(node)) {
+			if (Array.isArray(value)) {
+				for (const child of value) {
+					if (child && typeof child === "object" && "type" in child) {
+						visit(child as Node, file);
+					}
+				}
+			} else if (value && typeof value === "object" && "type" in value) {
+				visit(value as Node, file);
+			}
+		}
+	};
+
+	for (const file of files) {
+		const rel = file.slice(dir.length + 1);
+		const src = (await fs.promises.readFile(file, "utf8")) as string;
+		let ast: Node;
+		try {
+			ast = parse(src, {
+				ecmaVersion: "latest",
+				sourceType: "script",
+			}) as unknown as Node;
+		} catch (err) {
+			return `semantic gate: ${rel} does not parse (${(err as Error).message})`;
+		}
+		visit(ast, rel);
+	}
+
+	for (const call of calls) {
+		const arity = defs.get(call.name);
+		if (arity !== undefined && arity !== call.argc) {
+			return (
+				`semantic gate: ${call.name}() called with ${call.argc} arg(s) ` +
+				`in ${call.file} but defined with ${arity} param(s) — ` +
+				`a conflict git cannot see`
+			);
+		}
+	}
+	return null;
+}
+
+/**
  * Spike stand-in for the Sandbox test run: if the merged tree carries a
  * package.json it must still parse. Returns a failure reason or null.
  */
@@ -245,7 +377,8 @@ export async function mergeTaskIntoTrunk(opts: {
 	);
 	if (outcome.status === "conflict") return outcome;
 
-	const gateFailure = await runTestGate(fs, dir);
+	const gateFailure =
+		(await runTestGate(fs, dir)) ?? (await runSemanticGate(fs, dir));
 	if (gateFailure) return { status: "failed", reason: gateFailure };
 
 	// Already-merged work adds nothing to trunk — skip the push.

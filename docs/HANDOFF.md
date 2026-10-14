@@ -9,12 +9,17 @@ All of the following was verified on this machine at the time of writing:
 - `npm run dev` boots with **no Cloudflare account**. All three bindings report
   mode `local` (`ClaimRegistry`, `LocalArtifacts`, `merge-queue`); the only
   remote binding is the optional `[ai]`.
-- `npm run simulate` drives four concurrent agents end-to-end and **exits 0**.
-  It self-checks that all four agents obtained a claim, that an overlapping
-  claim was refused and queued, and that every task passed through the serial
-  merge queue.
-- `npm run test:merge` passes 4/4 — clean merge, real conflict, no-op re-merge,
-  test-gate failure.
+- `npm run simulate` drives five concurrent agents end-to-end and **exits 0**.
+  It self-checks that all agents obtained a claim, that an overlapping claim
+  was refused and queued, and that every task passed through the serial merge
+  queue.
+- `npm run test:merge` passes 5/5 — clean merge, real conflict, no-op re-merge,
+  test-gate failure, and a signature-change semantic conflict.
+- `npm run simulate` runs **five** agents: Alpha/Bravo produce the same-file
+  conflict → resolver → landed arc, and **Agent-Echo** produces the semantic
+  beat — `greet()` signature change merges clean in git, then fails the
+  acorn-based semantic gate (`greet() called with 1 arg(s) in src/handlers.js
+but defined with 2 param(s)`).
 - The worker log shows real landings with commit SHAs, and Alpha/Bravo's
   same-line edit on `src/index.js` surfacing as a genuine conflict routed to
   the resolver — **and then landing**: the resolver produces resolved content
@@ -32,6 +37,9 @@ All of the following was verified on this machine at the time of writing:
   are counted separately because the queue prevented them from landing.
 - The resolver model was moved to `@cf/meta/llama-3.1-8b-instruct-fast` —
   the non-`-fast` variant was deprecated 2026-05-30 and errors 5028 on call.
+  If Workers AI rate-limits mid-run (error 1031 observed once), the resolver
+  falls back to yield-to-trunk and the task still lands — the demo survives
+  it, and the log labels the fallback honestly.
 
 ## What is left
 
@@ -58,9 +66,9 @@ All of the following was verified on this machine at the time of writing:
    binding and its `v2` migration, `npx wrangler login`, then `npm run dev` and
    `npm run simulate`.
 
-5. **(Stretch) Richer gate.** The test gate only parses `package.json`; a
-   production version runs the repo's real test suite in a Cloudflare Sandbox
-   before the merge commit lands.
+5. **(Stretch) Richer gate.** The gate is a `package.json` parse plus an
+   acorn arity check over the merged tree; a production version runs the
+   repo's real test suite in a Cloudflare Sandbox before the merge lands.
 
 ## Known limitations
 

@@ -8,7 +8,7 @@
  */
 import git from "isomorphic-git";
 import { MemoryFS } from "../src/memory-fs";
-import { mergeBranches, runTestGate } from "../src/merge";
+import { mergeBranches, runTestGate, runSemanticGate } from "../src/merge";
 
 const AUTHOR = { name: "Harness", email: "harness@tributary.dev" };
 
@@ -170,12 +170,62 @@ async function caseGateFailure() {
 	check("test gate rejects", gate !== null, gate ?? "");
 }
 
+async function caseSemanticGate() {
+	console.log(
+		"\nCase: signature change merges clean but fails the semantic gate",
+	);
+	const dir = "/case-semantic";
+	const fs = await setupRepo(dir);
+
+	// trunk: greet(name) defined in one file, called with one arg in another
+	await commitOn(
+		fs,
+		dir,
+		"main",
+		{
+			"greet.js": "exports.greet = (name) => `Hello, ${name}!`;\n",
+			"handlers.js": 'const r = () => greet("world");\n',
+		},
+		"seed greet + caller",
+	);
+
+	// task: signature change — textually disjoint from the caller, so git
+	// merges it clean and only the semantic gate sees the breakage
+	await git.branch({ fs, dir, ref: "task" });
+	await commitOn(
+		fs,
+		dir,
+		"task",
+		{
+			"greet.js":
+				"exports.greet = (name, greeting) => `${greeting}, ${name}!`;\n",
+		},
+		"task changes greet signature",
+	);
+
+	const outcome = await mergeBranches(fs, dir, "main", "task");
+	check(
+		"git merge is clean",
+		outcome.status === "merged",
+		JSON.stringify(outcome),
+	);
+
+	const gate = await runSemanticGate(fs, dir);
+	check("semantic gate rejects", gate !== null, gate ?? "");
+	check(
+		"names the invisible conflict",
+		gate !== null && gate.includes("greet") && gate.includes("handlers.js"),
+		gate ?? "",
+	);
+}
+
 async function main() {
 	console.log("🌊 Tributary merge-engine harness");
 	await caseCleanMerge();
 	await caseConflict();
 	await caseAlreadyMerged();
 	await caseGateFailure();
+	await caseSemanticGate();
 
 	console.log(
 		failures === 0 ? "\nAll cases passed." : `\n${failures} case(s) failed.`,
