@@ -11,7 +11,7 @@ export interface AiBinding {
 	): Promise<{ response?: string } | ReadableStream>;
 }
 
-const RESOLVER_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const RESOLVER_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
 // GitLab-Duo-style staged commit author.
 const RESOLVER_AUTHOR = {
@@ -111,7 +111,20 @@ async function aiResolveHunk(
 
 // ── public API ────────────────────────────────────────────────────────────────
 
+export interface ConflictSide {
+	file: string;
+	ours: string;
+	theirs: string;
+}
+
 export interface ResolveOpts {
+	/**
+	 * Both sides of each conflicted file, captured by the merge engine before
+	 * the aborted-merge workspace was discarded. Task repos never carry
+	 * conflict markers (merges run abortOnConflict), so without sides the
+	 * clone path below finds nothing to resolve.
+	 */
+	sides?: ConflictSide[];
 	/** Read-only token for cloning the conflicted repo. */
 	readToken?: string;
 	/**
@@ -125,7 +138,16 @@ export interface ResolveOpts {
 }
 
 export type ResolveResult =
-	| { status: "resolved"; files: string[] }
+	| {
+			status: "resolved";
+			files: string[];
+			/**
+			 * Resolved file contents. The merge queue re-runs the merge with
+			 * these applied as a merge driver, so the resolution is verified by
+			 * the same test gate as every other landing before trunk moves.
+			 */
+			contents?: Record<string, string>;
+	  }
 	| { status: "logged"; files: string[] }
 	| { status: "skipped"; files: string[] };
 
@@ -150,6 +172,36 @@ export async function resolveConflict(
 		`[Resolver] Handling residual conflict for ${agentId} — ` +
 			`${conflictedFiles.length} file(s): ${conflictedFiles.join(", ")}`,
 	);
+
+	// Merge-time sides path: the merge engine already captured both sides of
+	// each conflicted file, so resolution needs no clone. Whole files are the
+	// unit here — the AI merges both intents; the fallback yields to trunk
+	// (ours), discarding the agent's conflicting edit rather than landing
+	// unreviewed text. The contents are returned to the queue, which applies
+	// them as a merge driver on a single re-queued merge — the resolution is
+	// verified by the same test gate as every other landing before trunk moves.
+	if (opts?.sides?.length) {
+		const contents: Record<string, string> = {};
+		for (const side of opts.sides) {
+			let resolved = side.ours;
+			let via = "fallback (yield to trunk)";
+			if (opts.ai) {
+				const aiOut = await aiResolveHunk(
+					opts.ai,
+					side.file,
+					side.ours,
+					side.theirs,
+				);
+				if (aiOut != null) {
+					resolved = aiOut;
+					via = RESOLVER_MODEL;
+				}
+			}
+			contents[side.file] = resolved;
+			console.log(`[Resolver] ${side.file}: resolved via ${via}`);
+		}
+		return { status: "resolved", files: Object.keys(contents), contents };
+	}
 
 	// Demo / test path — no real repo available. Counter ticks, we return early.
 	if (!repoUrl || !opts?.readToken) {

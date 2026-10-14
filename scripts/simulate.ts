@@ -170,15 +170,22 @@ async function main() {
 		`trunk ready via ${imported.provider} provider (seed ${String(imported.seed).slice(0, 8)})\n`,
 	);
 
+	// Stats persist in the Durable Object across runs, so every check below is
+	// measured as a delta from this baseline — the harness is re-runnable.
+	const before = await api("/registry/status");
+
 	console.log(`spawning ${TASKS.length} concurrent agents…\n`);
 	const results = await Promise.all(TASKS.map(runAgent));
 	const granted = results.filter(Boolean).length;
 
 	console.log("\nwaiting for the merge queue to drain…");
-	const status = await waitForMerges(TASKS.length);
+	const status = await waitForMerges(before.stats.totalMerges + TASKS.length);
 
-	const { totalMerges, conflictsPrevented, resolverInvocations, trunkStatus } =
-		status.stats;
+	const merges = status.stats.totalMerges - before.stats.totalMerges;
+	const prevented =
+		status.stats.conflictsPrevented - before.stats.conflictsPrevented;
+	const resolver =
+		status.stats.resolverInvocations - before.stats.resolverInvocations;
 	console.log("\nfinal registry status:");
 	console.log(JSON.stringify(status, null, 2));
 
@@ -189,10 +196,10 @@ async function main() {
 	if (granted !== TASKS.length) {
 		failures.push(`${granted}/${TASKS.length} agents obtained a claim`);
 	}
-	if (totalMerges < TASKS.length) {
-		failures.push(`merge queue processed ${totalMerges}/${TASKS.length} tasks`);
+	if (merges < TASKS.length) {
+		failures.push(`merge queue processed ${merges}/${TASKS.length} tasks`);
 	}
-	if (conflictsPrevented < 1) {
+	if (prevented < 1) {
 		failures.push("no overlapping claim was prevented (stage 1 not exercised)");
 	}
 
@@ -201,13 +208,13 @@ async function main() {
 		`  ${granted === TASKS.length ? "✅" : "❌"} claims granted: ${granted}/${TASKS.length}`,
 	);
 	console.log(
-		`  ${conflictsPrevented >= 1 ? "✅" : "❌"} conflicts prevented: ${conflictsPrevented}`,
+		`  ${prevented >= 1 ? "✅" : "❌"} conflicts prevented this run: ${prevented}`,
 	);
 	console.log(
-		`  ${totalMerges >= TASKS.length ? "✅" : "❌"} merges processed: ${totalMerges}/${TASKS.length}`,
+		`  ${merges >= TASKS.length ? "✅" : "❌"} merges processed this run: ${merges}/${TASKS.length}`,
 	);
 	console.log(
-		`  ℹ️  resolver runs: ${resolverInvocations} (trunk ${trunkStatus})`,
+		`  ℹ️  resolver runs this run: ${resolver} (trunk ${status.stats.trunkStatus})`,
 	);
 
 	if (failures.length > 0) {

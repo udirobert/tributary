@@ -32,8 +32,12 @@ export const DASHBOARD_HTML = `<!doctype html>
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
   .topbar {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
     padding: 18px 28px; border-bottom: 1px solid var(--line);
     background: rgba(11, 16, 32, 0.6); backdrop-filter: blur(8px);
     position: sticky; top: 0; z-index: 10;
@@ -51,10 +55,11 @@ export const DASHBOARD_HTML = `<!doctype html>
     display: inline-flex; align-items: center; gap: 8px;
     padding: 6px 10px; border-radius: 999px; font-size: 12px;
     background: rgba(34, 197, 94, 0.08); color: var(--green);
-    border: 1px solid rgba(34, 197, 94, 0.25);
+    border: 1px solid rgba(34, 197, 94, 0.25); white-space: nowrap;
   }
+  .live.stale { background: rgba(245,158,11,0.08); color: var(--amber); border-color: rgba(245,158,11,0.3); }
   .live .dot {
-    width: 8px; height: 8px; border-radius: 999px; background: var(--green);
+    width: 8px; height: 8px; border-radius: 999px; background: currentColor;
     box-shadow: 0 0 0 0 rgba(34,197,94,0.6);
     animation: pulse 1.6s ease-out infinite;
   }
@@ -65,27 +70,96 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
 
   .wrap { max-width: 1200px; margin: 0 auto; padding: 28px; }
-  .grid {
-    display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px;
+
+  .thesis {
+    margin: 0 auto 22px; max-width: 780px; text-align: center;
+    color: var(--ink-dim); font-size: 14px; line-height: 1.55;
   }
+  .thesis strong { color: var(--ink); }
+
+  /* Onboarding — the page is never a dead end. */
+  .onboard {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin: 0 auto 22px; padding: 16px 18px;
+    border: 1px dashed rgba(56,189,248,0.45); border-radius: 14px;
+    background: linear-gradient(180deg, rgba(56,189,248,0.08), rgba(56,189,248,0.02));
+  }
+  .onboard[hidden] { display: none; }
+  .onboard-icon {
+    width: 36px; height: 36px; border-radius: 10px; flex: 0 0 36px;
+    display: grid; place-items: center; font-size: 14px;
+    background: rgba(56,189,248,0.15); color: var(--blue);
+  }
+  .onboard-body { flex: 1 1 320px; }
+  .onboard-title { font-weight: 600; font-size: 14px; }
+  .onboard-sub { color: var(--ink-dim); font-size: 13px; margin-top: 3px; line-height: 1.45; }
+  .onboard-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .cmd {
+    font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 12.5px;
+    background: rgba(0,0,0,0.4); border: 1px solid var(--line); color: var(--ink);
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+  }
+  .cmd:hover { border-color: var(--blue); }
+  .cmd.copied { color: var(--green); border-color: rgba(34,197,94,0.5); }
+
+  .btn {
+    font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    padding: 8px 12px; border-radius: 8px; white-space: nowrap;
+    color: var(--violet); background: rgba(167,139,250,0.12);
+    border: 1px solid rgba(167,139,250,0.35);
+  }
+  .btn:hover:not(:disabled) { background: rgba(167,139,250,0.2); }
+  .btn:focus-visible, .cmd:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .btn:disabled { opacity: 0.55; cursor: progress; }
+
+  /* Pipeline — the three stages of the thesis, always visible. */
+  .pipeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  @media (max-width: 900px) { .pipeline { grid-template-columns: 1fr; } }
+  .stage {
+    position: relative;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
+  }
+  .stage-head { display: flex; align-items: center; gap: 8px; }
+  .stage-num {
+    width: 20px; height: 20px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    display: grid; place-items: center; background: rgba(255,255,255,0.06); color: var(--ink-dim);
+  }
+  .stage-name { font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+  .stage.s1 .stage-name { color: var(--amber); }
+  .stage.s2 .stage-name { color: var(--blue); }
+  .stage.s3 .stage-name { color: var(--violet); }
+  .stage-value {
+    font-size: 30px; font-weight: 700; margin-top: 8px; letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums; transition: transform 200ms ease;
+  }
+  .stage-value.tick { transform: scale(1.08); }
+  .stage-help { font-size: 11.5px; color: var(--ink-dim); margin-top: 4px; line-height: 1.45; }
+  @media (min-width: 901px) {
+    .stage + .stage::before {
+      content: "→"; position: absolute; left: -13px; top: 50%; transform: translateY(-50%);
+      color: var(--line); font-size: 14px;
+    }
+  }
+
+  .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
   @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .grid + .grid { margin-top: 20px; }
 
   .panel {
     background: linear-gradient(180deg, var(--panel), var(--panel-2));
     border: 1px solid var(--line); border-radius: 14px;
     padding: 18px 20px; box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
   }
-  .panel h3 {
+  .panel h2 {
     margin: 0 0 14px; font-size: 12px; text-transform: uppercase;
     letter-spacing: 1.4px; color: var(--ink-dim); font-weight: 600;
   }
 
-  /* Trunk */
   .trunk { display: flex; align-items: center; gap: 16px; }
   .trunk-light {
-    width: 56px; height: 56px; border-radius: 50%;
-    display: grid; place-items: center; font-size: 22px;
-    transition: all 200ms ease;
+    width: 56px; height: 56px; border-radius: 50%; flex: 0 0 56px;
+    display: grid; place-items: center; font-size: 22px; transition: all 200ms ease;
   }
   .trunk-light.green {
     background: var(--green-bg); color: var(--green);
@@ -101,35 +175,22 @@ export const DASHBOARD_HTML = `<!doctype html>
   .trunk-meta .value { font-size: 22px; font-weight: 600; margin-top: 4px; letter-spacing: 0.2px; }
   .trunk-meta .value.green { color: var(--green); }
   .trunk-meta .value.red { color: var(--red); }
-
-  /* Counters */
-  .counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
-  .counter {
-    background: rgba(255,255,255,0.03); border: 1px solid var(--line);
-    border-radius: 12px; padding: 14px;
+  .last-merge { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-dim); }
+  .last-merge code {
+    background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink);
   }
-  .counter .k { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 1px; }
-  .counter .v {
-    font-size: 30px; font-weight: 700; margin-top: 6px; letter-spacing: -0.5px;
-    font-variant-numeric: tabular-nums;
-    transition: transform 200ms ease;
-  }
-  .counter .v.tick { transform: scale(1.08); }
-  .counter.merges .v { color: var(--blue); }
-  .counter.prevented .v { color: var(--amber); }
-  .counter.resolver .v { color: var(--violet); }
-  .counter .help { font-size: 11px; color: var(--ink-dim); margin-top: 4px; line-height: 1.4; }
 
   /* Tables */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: left; }
   th { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--ink-dim); font-weight: 600; border-bottom: 1px solid var(--line); }
   td { border-bottom: 1px solid rgba(35,48,107,0.4); }
-  td code {
+  td code, .agent {
     background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;
     font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 12px;
   }
-  .empty { color: var(--ink-dim); font-style: italic; padding: 12px 0; font-size: 13px; }
+  .empty { color: var(--ink-dim); font-style: italic; padding: 12px 0; font-size: 13px; font-weight: 400; text-transform: none; letter-spacing: 0; }
   .pill {
     display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
@@ -140,37 +201,35 @@ export const DASHBOARD_HTML = `<!doctype html>
   /* Event feed */
   .feed {
     font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 12.5px;
-    max-height: 280px; overflow-y: auto;
+    max-height: 320px; overflow-y: auto;
   }
-  .feed-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed rgba(35,48,107,0.4); }
-  .feed-row .t { color: var(--ink-dim); flex: 0 0 90px; }
-  .feed-row .b { flex: 1; }
-  .feed-row .tag {
+  .feed-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px dashed rgba(35,48,107,0.4); align-items: baseline; }
+  .feed-row:first-child { animation: slideIn 320ms ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .feed-row .t { color: var(--ink-dim); flex: 0 0 76px; }
+  .feed-row .b { flex: 1; line-height: 1.5; }
+  .tag {
     display: inline-block; padding: 1px 6px; border-radius: 4px;
     font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
     margin-right: 6px;
   }
-  .tag.claim   { background: rgba(56,189,248,0.15); color: var(--blue); }
-  .tag.queued  { background: rgba(245,158,11,0.15); color: var(--amber); }
-  .tag.merge   { background: rgba(34,197,94,0.15); color: var(--green); }
-  .tag.fail    { background: rgba(239,68,68,0.15); color: var(--red); }
+  .tag.claim    { background: rgba(56,189,248,0.15); color: var(--blue); }
+  .tag.queued   { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .tag.merge    { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag.conflict { background: rgba(239,68,68,0.15); color: var(--red); }
   .tag.resolver { background: rgba(167,139,250,0.15); color: var(--violet); }
-  .tag.rel     { background: rgba(149,161,207,0.15); color: var(--ink-dim); }
+  .tag.release  { background: rgba(149,161,207,0.15); color: var(--ink-dim); }
+  .feed .who { color: var(--ink); }
 
   footer {
     margin-top: 28px; padding: 18px 28px; color: var(--ink-dim); font-size: 12px;
     border-top: 1px solid var(--line); text-align: center;
   }
   footer a { color: var(--ink); text-decoration: none; border-bottom: 1px dotted var(--ink-dim); }
-  .thesis {
-    margin: 0 auto 22px; max-width: 760px; text-align: center;
-    color: var(--ink-dim); font-size: 14px; line-height: 1.55;
-  }
-  .thesis strong { color: var(--ink); }
 </style>
 </head>
 <body>
-  <div class="topbar">
+  <header class="topbar">
     <div class="brand">
       <div class="brand-logo">🌊</div>
       <div>
@@ -178,177 +237,238 @@ export const DASHBOARD_HTML = `<!doctype html>
         <div class="brand-sub">Conflict prevention · Speculative merge queue · LLM resolver of last resort</div>
       </div>
     </div>
-    <div class="live"><span class="dot"></span><span id="liveText">Live · polling /registry/status</span></div>
-  </div>
+    <div class="live" id="livePill"><span class="dot"></span><span id="liveText">Connecting…</span></div>
+  </header>
 
-  <div class="wrap">
+  <main class="wrap">
     <p class="thesis">
       <strong>Thesis:</strong> conflicts are a scheduling problem first, and a negotiation problem last.
-      Tributary inverts the PR model — agents declare a file footprint, work in isolated forks, and only
-      land changes when the speculative merge queue proves them clean. The LLM resolver is a safety net,
-      not the spine.
+      Agents declare a file footprint, work in isolated forks, and only land when the speculative merge
+      queue proves them clean. The LLM resolver is a safety net, not the spine.
     </p>
 
+    <section class="onboard" id="onboard" hidden>
+      <div class="onboard-icon">▶</div>
+      <div class="onboard-body">
+        <div class="onboard-title">Nothing has happened yet</div>
+        <div class="onboard-sub">
+          Start four concurrent agents in a second terminal — two of them will declare the same file.
+          Or trigger a single resolver beat to see stage 3 on its own.
+        </div>
+      </div>
+      <div class="onboard-actions">
+        <button class="cmd" id="cmdBtn" type="button" title="Copy to clipboard">npm run simulate</button>
+        <button class="btn" id="demoBtn" type="button">Trigger resolver beat</button>
+      </div>
+    </section>
+
+    <section class="pipeline" aria-label="The three stages">
+      <div class="stage s1">
+        <div class="stage-head"><span class="stage-num">1</span><span class="stage-name">Prevent</span></div>
+        <div class="stage-value" id="cPrev" aria-live="polite">0</div>
+        <div class="stage-help">Overlapping claims refused and queued before any work starts.</div>
+      </div>
+      <div class="stage s2">
+        <div class="stage-head"><span class="stage-num">2</span><span class="stage-name">Integrate</span></div>
+        <div class="stage-value" id="cMerges" aria-live="polite">0</div>
+        <div class="stage-help">Three-way merges that passed the test gate and landed on trunk.</div>
+      </div>
+      <div class="stage s3">
+        <div class="stage-head"><span class="stage-num">3</span><span class="stage-name">Negotiate</span></div>
+        <div class="stage-value" id="cRes" aria-live="polite">0</div>
+        <div class="stage-help">Residual conflicts that survived both gates. This number should stay small.</div>
+      </div>
+    </section>
+
     <div class="grid">
-      <div class="panel">
-        <h3>Trunk status</h3>
+      <section class="panel">
+        <h2>Trunk status</h2>
         <div class="trunk">
-          <div id="trunkLight" class="trunk-light green">✓</div>
+          <div id="trunkLight" class="trunk-light green" aria-hidden="true">✓</div>
           <div class="trunk-meta">
-            <div class="label">Main branch</div>
+            <div class="label">main · verified trunk</div>
             <div class="value green" id="trunkLabel">GREEN</div>
           </div>
         </div>
+        <div class="last-merge" id="lastMerge">No merge yet — trunk has not moved.</div>
+      </section>
 
-        <div class="counters">
-          <div class="counter merges">
-            <div class="k">Total merges</div>
-            <div class="v" id="cMerges">0</div>
-            <div class="help">Tasks that landed cleanly via the speculative merge queue.</div>
-          </div>
-          <div class="counter prevented">
-            <div class="k">Conflicts prevented</div>
-            <div class="v" id="cPrev">0</div>
-            <div class="help">Overlapping claims refused before any work started.</div>
-          </div>
-          <div class="counter resolver">
-            <div class="k">Resolver runs</div>
-            <div class="v" id="cRes">0</div>
-            <div class="help">Residual conflicts the scheduler couldn't avoid — last-resort LLM mediation.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>Live event feed</h3>
-        <div class="feed" id="feed"><div class="empty">Waiting for activity…</div></div>
-      </div>
+      <section class="panel">
+        <h2>Live event feed</h2>
+        <div class="feed" id="feed" aria-live="polite"><div class="empty">Waiting for activity…</div></div>
+      </section>
     </div>
 
-    <div class="grid" style="margin-top:20px">
-      <div class="panel">
-        <h3>Active claims</h3>
+    <div class="grid">
+      <section class="panel">
+        <h2>Active claims</h2>
         <table id="claims">
-          <thead><tr><th>Agent</th><th>Files</th><th>Expires</th></tr></thead>
+          <thead><tr><th>Agent</th><th>Declared footprint</th><th>Expires</th></tr></thead>
           <tbody><tr><td colspan="3" class="empty">No active claims.</td></tr></tbody>
         </table>
-      </div>
-      <div class="panel">
-        <h3>Waitlist</h3>
+      </section>
+      <section class="panel">
+        <h2>Waitlist</h2>
         <table id="waitlist">
-          <thead><tr><th>Agent</th><th>Files</th><th>Status</th></tr></thead>
+          <thead><tr><th>Agent</th><th>Declared footprint</th><th>Status</th></tr></thead>
           <tbody><tr><td colspan="3" class="empty">No waitlisted agents.</td></tr></tbody>
         </table>
-      </div>
+      </section>
     </div>
-  </div>
+  </main>
 
   <footer>
     Tributary spike · <a href="/registry/status">/registry/status</a> · built for the Cloudflare “Build the next GitHub” challenge
   </footer>
 
 <script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-  const fmtTime = (ms) => {
-    const d = new Date(ms);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
   };
-  const tick = (el, v) => {
-    const cur = el.textContent;
-    const next = String(v);
-    if (cur !== next) {
+  var clock = function (ms) {
+    return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+  var ago = function (ms) {
+    var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 2) return 'just now';
+    if (s < 60) return s + 's ago';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    return Math.floor(m / 60) + 'h ago';
+  };
+  var tick = function (el, v) {
+    var next = String(v);
+    if (el.textContent !== next) {
       el.textContent = next;
       el.classList.add('tick');
-      setTimeout(() => el.classList.remove('tick'), 220);
+      setTimeout(function () { el.classList.remove('tick'); }, 220);
     }
   };
-  const renderClaims = (claims) => {
-    const tb = $('claims').querySelector('tbody');
+
+  var renderClaims = function (claims) {
+    var tb = $('claims').querySelector('tbody');
     if (!claims.length) {
       tb.innerHTML = '<tr><td colspan="3" class="empty">No active claims.</td></tr>';
       return;
     }
-    tb.innerHTML = claims.map(c => \`
-      <tr>
-        <td><code>\${c.agentId}</code></td>
-        <td>\${c.files.map(f => \`<code>\${f}</code>\`).join(' ')}</td>
-        <td>\${fmtTime(c.expiresAt)}</td>
-      </tr>\`).join('');
+    tb.innerHTML = claims.map(function (c) {
+      var files = c.files.map(function (f) { return '<code>' + esc(f) + '</code>'; }).join(' ');
+      return '<tr><td><span class="agent">' + esc(c.agentId) + '</span></td><td>' + files +
+             '</td><td>' + ago(c.expiresAt).replace(' ago', ' from now') + '</td></tr>';
+    }).join('');
   };
-  const renderWaitlist = (q) => {
-    const tb = $('waitlist').querySelector('tbody');
+
+  var renderWaitlist = function (q) {
+    var tb = $('waitlist').querySelector('tbody');
     if (!q.length) {
       tb.innerHTML = '<tr><td colspan="3" class="empty">No waitlisted agents.</td></tr>';
       return;
     }
-    tb.innerHTML = q.map(w => \`
-      <tr>
-        <td><code>\${w.agentId}</code></td>
-        <td>\${w.files.map(f => \`<code>\${f}</code>\`).join(' ')}</td>
-        <td><span class="pill queued">queued</span></td>
-      </tr>\`).join('');
+    tb.innerHTML = q.map(function (w) {
+      var files = w.files.map(function (f) { return '<code>' + esc(f) + '</code>'; }).join(' ');
+      return '<tr><td><span class="agent">' + esc(w.agentId) + '</span></td><td>' + files +
+             '</td><td><span class="pill queued">queued</span></td></tr>';
+    }).join('');
   };
-  const feed = $('feed');
-  const feedHistory = [];
-  const pushFeed = (tag, text) => {
-    feedHistory.unshift({ tag, text, t: Date.now() });
-    if (feedHistory.length > 40) feedHistory.pop();
-    feed.innerHTML = feedHistory.map(r => \`
-      <div class="feed-row">
-        <div class="t">\${fmtTime(r.t)}</div>
-        <div class="b"><span class="tag \${r.tag}">\${r.tag}</span>\${r.text}</div>
-      </div>\`).join('') || '<div class="empty">Waiting for activity…</div>';
-  };
-  // Synthesize feed events from state diffs (the DO is the source of truth).
-  let prev = null;
-  const render = async () => {
-    let data;
-    try {
-      data = await fetch('/registry/status', { cache: 'no-store' }).then(r => r.json());
-    } catch (e) {
-      $('liveText').textContent = 'Reconnecting…';
+
+  var renderFeed = function (events) {
+    var feed = $('feed');
+    if (!events || !events.length) {
+      feed.innerHTML = '<div class="empty">Waiting for activity…</div>';
       return;
     }
-    $('liveText').textContent = 'Live · polling /registry/status';
-
-    const ts = data.stats;
-    const light = $('trunkLight');
-    const label = $('trunkLabel');
-    if (ts.trunkStatus === 'green') {
-      light.className = 'trunk-light green'; light.textContent = '✓';
-      label.className = 'value green'; label.textContent = 'GREEN';
-    } else {
-      light.className = 'trunk-light red'; light.textContent = '!';
-      label.className = 'value red'; label.textContent = 'RED';
-    }
-    tick($('cMerges'), ts.totalMerges);
-    tick($('cPrev'),   ts.conflictsPrevented);
-    tick($('cRes'),    ts.resolverInvocations);
-
-    renderClaims(data.activeClaims);
-    renderWaitlist(data.waitlist);
-
-    if (prev) {
-      // Emit synthetic feed events from state deltas.
-      if (ts.totalMerges > (prev.stats.totalMerges || 0))
-        pushFeed('merge', 'speculative merge landed → trunk advanced');
-      if (ts.conflictsPrevented > (prev.stats.conflictsPrevented || 0))
-        pushFeed('queued', 'overlapping claim detected → queued to waitlist');
-      if (ts.resolverInvocations > (prev.stats.resolverInvocations || 0))
-        pushFeed('resolver', 'residual conflict routed to LLM resolver');
-      const prevActive = new Set(prev.activeClaims.map(c => c.agentId));
-      for (const c of data.activeClaims)
-        if (!prevActive.has(c.agentId)) pushFeed('claim', \`\${c.agentId} granted claim for \${c.files.join(', ')}\`);
-      const prevWL = new Set(prev.waitlist.map(w => w.agentId));
-      for (const w of data.waitlist)
-        if (!prevWL.has(w.agentId)) pushFeed('queued', \`\${w.agentId} queued (overlap with active claim)\`);
-      const curActive = new Set(data.activeClaims.map(c => c.agentId));
-      for (const c of prev.activeClaims)
-        if (!curActive.has(c.agentId)) pushFeed('rel', \`\${c.agentId} released claim\`);
-    }
-    prev = data;
+    feed.innerHTML = events.map(function (e) {
+      var who = e.agentId ? '<span class="who">' + esc(e.agentId) + '</span> · ' : '';
+      return '<div class="feed-row"><div class="t">' + clock(e.at) + '</div>' +
+             '<div class="b"><span class="tag ' + esc(e.kind) + '">' + esc(e.kind) + '</span>' +
+             who + esc(e.detail) + '</div></div>';
+    }).join('');
   };
+
+  var renderLastMerge = function (lm) {
+    var el = $('lastMerge');
+    if (!lm) {
+      el.innerHTML = 'No merge yet — trunk has not moved.';
+      return;
+    }
+    var parts = [];
+    if (lm.agentId) parts.push('<span class="agent">' + esc(lm.agentId) + '</span>');
+    if (lm.repo) parts.push(esc(lm.repo));
+    if (lm.commit) parts.push('<code>' + esc(String(lm.commit).slice(0, 8)) + '</code>');
+    parts.push(esc(ago(lm.at)));
+    el.innerHTML = 'Last landed: ' + parts.join(' · ');
+  };
+
+  var setLive = function (ok, text) {
+    var pill = $('livePill');
+    pill.className = ok ? 'live' : 'live stale';
+    $('liveText').textContent = text;
+  };
+
+  var render = function () {
+    return fetch('/registry/status', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var ts = data.stats;
+        var light = $('trunkLight');
+        var label = $('trunkLabel');
+        if (ts.trunkStatus === 'green') {
+          light.className = 'trunk-light green'; light.textContent = '✓';
+          label.className = 'value green'; label.textContent = 'GREEN';
+        } else {
+          light.className = 'trunk-light red'; light.textContent = '!';
+          label.className = 'value red'; label.textContent = 'RED';
+        }
+
+        tick($('cMerges'), ts.totalMerges);
+        tick($('cPrev'), ts.conflictsPrevented);
+        tick($('cRes'), ts.resolverInvocations);
+
+        renderClaims(data.activeClaims || []);
+        renderWaitlist(data.waitlist || []);
+        renderFeed(data.events);
+        renderLastMerge(ts.lastMerge);
+
+        var any = (ts.totalMerges || 0) + (ts.conflictsPrevented || 0) + (ts.resolverInvocations || 0);
+        $('onboard').hidden = any > 0;
+
+        setLive(true, 'Live · updated ' + clock(Date.now()));
+      })
+      .catch(function () { setLive(false, 'Reconnecting…'); });
+  };
+
+  // Copy-to-clipboard on the command chip — a small kindness for the reader.
+  $('cmdBtn').addEventListener('click', function () {
+    var btn = this;
+    var done = function () {
+      var t = btn.textContent;
+      btn.classList.add('copied');
+      btn.textContent = 'copied ✓';
+      setTimeout(function () { btn.textContent = t; btn.classList.remove('copied'); }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText('npm run simulate').then(done, done);
+    } else {
+      done();
+    }
+  });
+
+  // Resolver beat, on demand — no curl required.
+  $('demoBtn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Triggering…';
+    fetch('/demo/conflict', { method: 'POST' })
+      .then(function () { return render(); })
+      .catch(function () {})
+      .then(function () { btn.disabled = false; btn.textContent = 'Trigger resolver beat'; });
+  });
+
   render();
   setInterval(render, 1500);
 })();

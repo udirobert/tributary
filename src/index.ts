@@ -65,16 +65,44 @@ interface Claim {
 interface QueuedClaim {
 	agentId: string;
 	files: string[];
+	ttlSeconds: number;
+}
+
+/** One entry in the bounded activity log the dashboard renders. */
+export interface RegistryEvent {
+	id: number;
+	at: number;
+	kind: "claim" | "queued" | "release" | "merge" | "conflict" | "resolver";
+	agentId?: string;
+	detail: string;
+}
+
+/** Context the queue consumer hands back when a task lands or is rejected. */
+export interface MergeResult {
+	success: boolean;
+	agentId?: string;
+	repo?: string;
+	commit?: string;
+	reason?: string;
 }
 
 export class ClaimRegistry extends DurableObject {
 	private claims: Map<string, Claim> = new Map();
 	private waitlist: QueuedClaim[] = [];
+	private events: RegistryEvent[] = [];
+	private eventSeq = 0;
 	private stats = {
 		conflictsPrevented: 0,
 		resolverInvocations: 0,
+		rejections: 0,
 		trunkStatus: "green",
 		totalMerges: 0,
+		lastMerge: null as null | {
+			agentId?: string;
+			repo?: string;
+			commit?: string;
+			at: number;
+		},
 	};
 
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -88,7 +116,14 @@ export class ClaimRegistry extends DurableObject {
 			if (storedWaitlist) this.waitlist = storedWaitlist;
 			const storedStats =
 				await this.ctx.storage.get<typeof this.stats>("stats");
-			if (storedStats) this.stats = storedStats;
+			// Merge over defaults so fields added in later versions start sane.
+			if (storedStats) this.stats = { ...this.stats, ...storedStats };
+			const storedEvents =
+				await this.ctx.storage.get<RegistryEvent[]>("events");
+			if (storedEvents) {
+				this.events = storedEvents;
+				this.eventSeq = storedEvents.reduce((max, e) => Math.max(max, e.id), 0);
+			}
 		});
 	}
 
@@ -96,9 +131,28 @@ export class ClaimRegistry extends DurableObject {
 		await this.ctx.storage.put("claims", this.claims);
 		await this.ctx.storage.put("waitlist", this.waitlist);
 		await this.ctx.storage.put("stats", this.stats);
+		await this.ctx.storage.put("events", this.events);
 	}
 
-	private checkOverlap(files: string[]): string | null {
+	/** Append to the bounded activity log (persisted by the caller's save()). */
+	private recordEvent(
+		kind: RegistryEvent["kind"],
+		detail: string,
+		agentId?: string,
+	) {
+		this.events.push({
+			id: ++this.eventSeq,
+			at: Date.now(),
+			kind,
+			agentId,
+			detail,
+		});
+		if (this.events.length > 100) {
+			this.events.splice(0, this.events.length - 100);
+		}
+	}
+
+	private checkOverlap(files: string[], self?: string): string | null {
 		const now = Date.now();
 		for (const [agentId, claim] of this.claims.entries()) {
 			if (claim.expiresAt < now) {
@@ -107,6 +161,7 @@ export class ClaimRegistry extends DurableObject {
 		}
 
 		for (const [agentId, claim] of this.claims.entries()) {
+			if (agentId === self) continue;
 			if (claim.files.some((f) => files.includes(f))) {
 				return agentId;
 			}
@@ -114,44 +169,110 @@ export class ClaimRegistry extends DurableObject {
 		return null;
 	}
 
+	/**
+	 * Grant the first waitlisted claim that no longer overlaps. Called after a
+	 * release (and after expiry cleanup), so queued agents land automatically
+	 * instead of waiting for their client to retry — and the dashboard
+	 * waitlist actually drains.
+	 */
+	private promoteWaitlist() {
+		const idx = this.waitlist.findIndex(
+			(w) => !this.checkOverlap(w.files, w.agentId),
+		);
+		if (idx === -1) return;
+		const [next] = this.waitlist.splice(idx, 1);
+		this.claims.set(next.agentId, {
+			agentId: next.agentId,
+			files: next.files,
+			expiresAt: Date.now() + (next.ttlSeconds ?? 300) * 1000,
+		});
+		this.recordEvent(
+			"claim",
+			`promoted from waitlist: ${next.files.join(", ")}`,
+			next.agentId,
+		);
+	}
+
 	async requestClaim(
 		agentId: string,
 		files: string[],
 		ttlSeconds: number = 300,
 	) {
-		const conflictingAgent = this.checkOverlap(files);
+		const conflictingAgent = this.checkOverlap(files, agentId);
 		if (conflictingAgent) {
-			this.waitlist.push({ agentId, files });
-			this.stats.conflictsPrevented++;
+			// Skip re-queueing an agent that is already waiting (client retries).
+			if (!this.waitlist.some((w) => w.agentId === agentId)) {
+				this.waitlist.push({ agentId, files, ttlSeconds });
+				this.stats.conflictsPrevented++;
+				this.recordEvent(
+					"queued",
+					`overlaps ${conflictingAgent} on ${files.join(", ")} — queued, not failed`,
+					agentId,
+				);
+			}
 			await this.save();
 			return { status: "queued", conflictingAgent };
 		}
+
+		// Grant — and drop any waitlist entry this agent held from earlier
+		// retries, so the dashboard waitlist reflects real pending work.
+		this.waitlist = this.waitlist.filter((w) => w.agentId !== agentId);
 
 		this.claims.set(agentId, {
 			agentId,
 			files,
 			expiresAt: Date.now() + ttlSeconds * 1000,
 		});
+		this.recordEvent("claim", `granted ${files.join(", ")}`, agentId);
 		await this.save();
 		return { status: "granted" };
 	}
 
 	async releaseClaim(agentId: string) {
+		const claim = this.claims.get(agentId);
 		this.claims.delete(agentId);
+		this.promoteWaitlist();
 
-		// In a real system we'd process the waitlist here and notify waiting agents
-		// For the spike, we just remove the claim.
+		this.recordEvent(
+			"release",
+			claim ? `released ${claim.files.join(", ")}` : "released claim",
+			agentId,
+		);
 		await this.save();
 		return { status: "released" };
 	}
 
-	async recordMergeResult(success: boolean) {
+	async recordMergeResult(result: MergeResult) {
 		this.stats.totalMerges++;
-		if (success) {
+		if (result.success) {
 			this.stats.trunkStatus = "green";
+			this.stats.lastMerge = {
+				agentId: result.agentId,
+				repo: result.repo,
+				commit: result.commit,
+				at: Date.now(),
+			};
+			this.recordEvent(
+				"merge",
+				`landed ${result.repo ?? "task"} on trunk` +
+					(result.commit ? ` (${result.commit.slice(0, 8)})` : ""),
+				result.agentId,
+			);
 		} else {
-			this.stats.trunkStatus = "red";
+			// Trunk never goes red: the queue rejected the change before it
+			// landed. Rejections are normal operation, not trunk damage.
+			this.stats.rejections++;
 			this.stats.resolverInvocations++;
+			this.recordEvent(
+				"conflict",
+				`${result.repo ?? "task"} did not land: ${result.reason ?? "conflict"}`,
+				result.agentId,
+			);
+			this.recordEvent(
+				"resolver",
+				`residual conflict for ${result.agentId ?? "agent"} routed to resolver`,
+				result.agentId,
+			);
 		}
 		await this.save();
 	}
@@ -162,6 +283,8 @@ export class ClaimRegistry extends DurableObject {
 			activeClaims: Array.from(this.claims.values()),
 			waitlist: this.waitlist,
 			stats: this.stats,
+			// Newest first — the dashboard feed renders this directly.
+			events: this.events.slice(-40).reverse(),
 		};
 	}
 }
@@ -344,7 +467,12 @@ export default {
 		if (request.method === "POST" && url.pathname === "/demo/conflict") {
 			const id2 = env.CLAIM_REGISTRY.idFromName("global");
 			const stub2 = env.CLAIM_REGISTRY.get(id2);
-			await stub2.recordMergeResult(false);
+			await stub2.recordMergeResult({
+				success: false,
+				agentId: "agent-misbehave",
+				repo: "demo-fault-repo",
+				reason: "wrote src/auth.js outside its declared footprint",
+			});
 			await resolveConflict("agent-misbehave", "", ["src/auth.js"], {
 				ai: env.AI,
 			});
@@ -397,7 +525,12 @@ export default {
 						`changed ${outOfFootprint.join(", ")} outside declared ` +
 						`footprint ${declared.join(", ") || "(none)"}. Routing to resolver.`,
 				);
-				await stub.recordMergeResult(false);
+				await stub.recordMergeResult({
+					success: false,
+					agentId: task.agentId,
+					repo: task.taskRepo,
+					reason: `changed ${outOfFootprint.join(", ")} outside its declared footprint`,
+				});
 				await resolveConflict(task.agentId, task.taskRepo, outOfFootprint, {
 					ai: env.AI,
 				});
@@ -421,6 +554,12 @@ export default {
 							remote: taskCreds.remote,
 							token: task.token ?? taskCreds.token,
 						},
+						resolutions: task.resolutions,
+						context: {
+							agentId: task.agentId,
+							footprint: task.files,
+							resolved: Boolean(task.resolutions),
+						},
 					});
 				} catch (err) {
 					console.error(
@@ -436,6 +575,12 @@ export default {
 				try {
 					outcome = await localArtifacts(env).mergeTask({
 						task: task.taskRepo,
+						resolutions: task.resolutions,
+						context: {
+							agentId: task.agentId,
+							footprint: task.files,
+							resolved: Boolean(task.resolutions),
+						},
 					});
 				} catch (err) {
 					console.error(
@@ -454,7 +599,12 @@ export default {
 					`[MergeQueue] ✅ Landed ${task.taskRepo} on trunk ` +
 						`(${outcome.status === "merged" ? outcome.commit : "no-op"})`,
 				);
-				await stub.recordMergeResult(true);
+				await stub.recordMergeResult({
+					success: true,
+					agentId: task.agentId,
+					repo: task.taskRepo,
+					commit: outcome.status === "merged" ? outcome.commit : undefined,
+				});
 			} else {
 				const reason =
 					outcome.status === "conflict"
@@ -464,13 +614,39 @@ export default {
 					`[MergeQueue] ❌ ${task.agentId} did not land: ${reason}. ` +
 						`Routing to resolver.`,
 				);
-				await stub.recordMergeResult(false);
-				await resolveConflict(
+				await stub.recordMergeResult({
+					success: false,
+					agentId: task.agentId,
+					repo: task.taskRepo,
+					reason,
+				});
+				const resolution = await resolveConflict(
 					task.agentId,
 					task.taskRepo,
 					outcome.status === "conflict" ? outcome.conflictedFiles : [],
-					{ ai: env.AI },
+					{
+						ai: env.AI,
+						sides: outcome.status === "conflict" ? outcome.sides : undefined,
+					},
 				);
+				// A resolved task re-enters the queue once with the resolution
+				// attached; the merge engine applies it as a merge driver and the
+				// test gate re-verifies before trunk moves. resolverRetry caps it
+				// at one attempt so a still-conflicting task can't loop.
+				if (
+					resolution.status === "resolved" &&
+					resolution.contents &&
+					!task.resolverRetry
+				) {
+					console.log(
+						`[MergeQueue] Resolver produced a resolution for ${task.taskRepo} — re-queuing merge.`,
+					);
+					await env.MERGE_QUEUE.send({
+						...task,
+						resolverRetry: true,
+						resolutions: resolution.contents,
+					});
+				}
 			}
 		}
 	},

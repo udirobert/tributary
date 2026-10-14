@@ -101,16 +101,31 @@ export class LocalArtifacts extends DurableObject {
 	private async boot(): Promise<void> {
 		if (this.booted) return;
 		await git.init({ fs: this.fs, dir: DIR, defaultBranch: TRUNK_BRANCH });
-		// Create the trunk branch up front so every later `checkout({ ref: trunk })`
-		// resolves, even on an otherwise-empty store.
-		await git.commit({
-			fs: this.fs,
-			dir: DIR,
-			message: "Initialize local Artifacts store",
-			author: AUTHOR,
-			allowEmpty: true,
-		});
+		// Seed and commit trunk up front so every later `checkout({ ref: trunk })`
+		// resolves. Seeding here (rather than an empty commit) keeps the store
+		// valid without needing isomorphic-git's empty-commit option.
+		await this.writeSeedAndCommit("Import trunk (local shim seed)");
 		this.booted = true;
+	}
+
+	/** Write the trunk fixture, committing only if it actually changed anything. */
+	private async writeSeedAndCommit(message: string): Promise<void> {
+		for (const [filepath, content] of Object.entries(SEED_FILES)) {
+			await this.fs.promises.writeFile(`${DIR}/${filepath}`, content);
+			await git.add({ fs: this.fs, dir: DIR, filepath });
+		}
+		if (await this.hasStagedChanges()) {
+			await git.commit({ fs: this.fs, dir: DIR, message, author: AUTHOR });
+		}
+	}
+
+	/** True when the workdir/index differs from HEAD in any way. */
+	private async hasStagedChanges(): Promise<boolean> {
+		const rows = await git.statusMatrix({ fs: this.fs, dir: DIR });
+		return rows.some(
+			([, head, workdir, stage]) =>
+				!(head === 1 && workdir === 1 && stage === 1),
+		);
 	}
 
 	private branchFor(repo: string): string {
@@ -139,21 +154,21 @@ export class LocalArtifacts extends DurableObject {
 		return this.run(async () => {
 			await this.boot();
 
+			// Re-running the simulation resets trunk to the fixture so the run is
+			// repeatable; on a fresh store this is a no-op.
 			await git.checkout({
 				fs: this.fs,
 				dir: DIR,
 				ref: TRUNK_BRANCH,
 				force: true,
 			});
-			for (const [filepath, content] of Object.entries(SEED_FILES)) {
-				await this.fs.promises.writeFile(`${DIR}/${filepath}`, content);
-				await git.add({ fs: this.fs, dir: DIR, filepath });
-			}
-			const seed = await git.commit({
+			await this.writeSeedAndCommit(
+				`Reset trunk to fixture for ${args.url ?? "fixture"}`,
+			);
+			const seed = await git.resolveRef({
 				fs: this.fs,
 				dir: DIR,
-				message: `Import trunk (local shim seed for ${args.url ?? "fixture"})`,
-				author: AUTHOR,
+				ref: TRUNK_BRANCH,
 			});
 
 			this.branches.set(args.name, TRUNK_BRANCH);
@@ -246,7 +261,11 @@ export class LocalArtifacts extends DurableObject {
 	 * three-way merge + test gate from `src/merge.ts`; because the store is
 	 * shared, a successful merge has already advanced `trunk` ("the push").
 	 */
-	async mergeTask(args: { task: string }): Promise<MergeOutcome> {
+	async mergeTask(args: {
+		task: string;
+		resolutions?: Record<string, string>;
+		context?: import("./merge").MergeContext;
+	}): Promise<MergeOutcome> {
 		return this.run(async () => {
 			await this.boot();
 			const taskBranch = this.branchFor(args.task);
@@ -256,6 +275,8 @@ export class LocalArtifacts extends DurableObject {
 				DIR,
 				TRUNK_BRANCH,
 				taskBranch,
+				args.resolutions,
+				args.context,
 			);
 			if (outcome.status === "conflict") return outcome;
 

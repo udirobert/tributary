@@ -52,7 +52,99 @@ Reviewed four sources shared in the brief (metadata verified via GitHub API; pag
 3. weave is a drop-in for the Sandbox merge step — no design change needed, it sits behind our existing merge-queue interface. Not adopted yet (Sandbox integration itself pending).
 4. No code was copied from any of these repos; references are conceptual and will be cited in the demo deck.
 
-## Open Questions
+## Competition Field Research (Oct 14, 2026)
+
+~89 public repos target this challenge; several converged on our exact
+thesis, so "claims + speculative merge + LLM resolver" is the **median**
+entry, not a differentiator. Read of the field and what we took from it:
+
+| Repo                                                                                  | Overlap                           | Notable patterns                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [scottfrasso/air-traffic-control](https://github.com/scottfrasso/air-traffic-control) | Same prevent→land→negotiate shape | Semantic conflicts via speculative merge + `tsc` in a container **while work is in flight** (catches signature-change-breaks-caller across files); MCP tools return ready-to-run git commands with auth baked in; intent is advisory context, not a lock; flight log written as git notes on landed commits; replayable dashboard runs judges can re-run |
+| [everyai-com/flare-forge](https://github.com/everyai-com/flare-forge)                 | Near-identical pitch              | Merge trains verified on the exact merged SHA + bisection on red; **ops ledger** counting Artifacts ops per landed change (11.2 ops/change), reconciled against Cloudflare's own GraphQL `artifactsEventsAdaptiveGroups` — judges can verify the claim                                                                                                   |
+| [mikeschlottig/weft](https://github.com/mikeschlottig/weft)                           | Feature-complete                  | Symbol-level intents via tree-sitter; merge-driver registry (`union`, `json-merge`, `sorted-lines` via `.gitattributes`); **resolver proposals are rebuilt on trunk and must pass checks before being offered** — adopted as our mergeDriver-retry loop                                                                                                  |
+
+Also present: convergence (branchless AST-CRDT), Tartan (claims + "the Advance"
+landing queue), gittub (AST locks + why-notes in `refs/notes/agents`), Keel
+(agent collisions on beliefs → generated tests), Shipboard (isomorphic-git
+trial merges in a DO), githive, timelines, SemaLane, Locus, Fork Arena, Cinq,
+Canon.
+
+**Adopted:** weft's "resolution is verified, not trusted" — our resolver
+output is applied by the merge engine's `mergeDriver` and re-gated, not
+committed blind. ATC's "intent as advisory context" framing is already ours
+(claims prevent work, not govern it).
+
+**Also adopted (Oct 14 evening):** provenance trailers on merge commits —
+`Tributary-Agent` / `Tributary-Footprint` / `Tributary-Resolved` are stamped
+into the merge commit message ("the why travels with the commit"), addressing
+the underweighted context-preservation criterion.
+
+**Not adopted tonight:** ops ledger (event-count Artifacts ops per landed
+change; ~50 lines on top of the existing event feed), replayable run mode
+(store the event log, offer `?replay` for judges — currently the simulation
+is deterministic enough that live runs suffice).
+
+**Positioning consequence:** we can't out-feature the leaders tonight. The
+defensible story is the _minimal correct core_ — claim registry, serial
+merge train, verified-resolution resolver — small enough to read in one
+sitting and real end-to-end. The submission form's three text fields are
+where that framing gets told.
+
+## Implementation Decisions (Oct 14, 2026)
+
+Recorded as built; these supersede the Step-0 plan above where they differ.
+
+1. **Merges run in-worker with `isomorphic-git`, not a Cloudflare Sandbox.**
+   Artifacts exposes no server-side merge/diff API, so `src/merge.ts` fetches
+   both heads into a `MemoryFS` repo, runs a real three-way merge with
+   `abortOnConflict`, applies a test gate, and only then advances trunk. A
+   Sandbox-run test suite is the production path; the spike's gate is a
+   `package.json` parse of the merged tree.
+2. **The resolver produces content; the merge engine lands it.** The original
+   plan called for per-hunk resolution committed back to the task repo. Two
+   discoveries changed that:
+   - `git.merge` runs `abortOnConflict`, so conflict markers never exist in
+     the task repo — the resolver clones and finds nothing. `src/merge.ts`
+     now captures each conflicted file's ours/theirs content before the
+     aborted workspace is discarded and hands those "sides" to the resolver.
+   - Committing a resolution onto the task branch cannot clear the conflict:
+     the three-way merge base never moves, so any task-side content ≠ trunk's
+     conflicts again on retry. Instead the resolver returns resolved contents
+     and the queue re-sends the task once with `resolutions` attached; the
+     retried merge applies them via isomorphic-git's `mergeDriver`, producing
+     a real merge commit that the test gate re-verifies (a proposal is only
+     landed when green — the pattern weft calls a "conflict room").
+   - Gotcha: `mergeDriver` receives the file's **basename** (`index.js`), not
+     the repo-relative path the conflict reports (`src/index.js`) — the driver
+     matches resolutions by suffix.
+   - Model: `@cf/meta/llama-3.1-8b-instruct` was deprecated 2026-05-30
+     (error 5028 on call); we use the still-active `-fast` variant. The
+     deterministic fallback yields to trunk (ours) for the conflicted file —
+     take-theirs would write back identical task content and guarantee a
+     re-conflict.
+   - The staged-privilege clone path (readToken → marker parse → writeToken on
+     approval) remains for remote repos where sides aren't available.
+3. **Workers AI is remote-only but non-blocking.** `wrangler dev` reports the
+   `[ai]` binding mode as `remote` and warns that it may incur charges even
+   locally. Unlike Artifacts it does not fail the startup proxy session, so the
+   default config still boots offline; deleting the `[ai]` block leaves the
+   resolver on its deterministic fallback.
+4. **The dashboard renders the registry's own activity log.** `ClaimRegistry`
+   keeps a bounded, persisted event list (claim / queued / release / merge /
+   conflict / resolver) surfaced through `GET /registry/status`, so the feed
+   reports what happened rather than inferring it from counter deltas.
+5. **An agent-facing CLI exists** (`scripts/tributary.ts`, `npm run tributary`)
+   so a real agent can drive claim → fork → commit → release without
+   hand-rolled HTTP calls; `run` does the whole lifecycle in one command.
+6. **Scripts must not use top-level `await`.** `package.json` sets
+   `"type": "commonjs"`, so tsx/esbuild transpiles everything under `scripts/`
+   to CJS, where top-level `await` is a syntax error — `scripts/tributary.ts`
+   was written that way and every command failed to load. Its dispatch now
+   lives in `main()` with a `.catch()`, matching `simulate.ts` and
+   `test-merge.ts`. Use that shape for new scripts, or move the package to ESM.
+
+## Resolved Questions
 
 - Does `wrangler dev` (local) emulate Artifacts bindings, or do import/fork/token flows require `wrangler dev` to a real namespace? **Resolved Oct 14, 2026.**
 
@@ -70,20 +162,32 @@ Reviewed four sources shared in the brief (metadata verified via GitHub API; pag
 
   **Implication for the spike:**
 
-  - `npm run simulate` and `npm run dev` require:
+  - Using the **real** Artifacts binding requires:
     1. `npx wrangler login` against a Workers Paid account.
     2. A real Artifacts namespace on that account (we use the
        `default` namespace; a custom one would also work).
-  - The merge engine (`src/merge.ts`) and the test gate can be
-    exercised **without** any of this via `npm run test:merge`, which
-    builds trunk + task histories in `MemoryFS` and runs the four-case
-    harness. That's the path to use in the demo if the paid account
-    setup fails on camera.
-  - Dashboard renders and live-counts the ClaimRegistry DO **without**
-    Artifacts (just `GET /registry/status`) — the DO is local-simulated
-    by wrangler. Useful for the dashboard beat even before any
-    Artifacts-bound route is called.
+  - The default config avoids this entirely: it binds the local shim
+    (`LOCAL_ARTIFACTS`) and omits `[[artifacts]]`, so `npm run dev` and
+    `npm run simulate` need no account. Add the `[[artifacts]]` block to
+    switch — `src/index.ts` prefers `env.ARTIFACTS` automatically.
+  - The merge engine (`src/merge.ts`) and the test gate are also
+    exercisable standalone via `npm run test:merge`, which builds trunk +
+    task histories in `MemoryFS` and runs the four-case harness.
+  - The dashboard renders and live-counts the ClaimRegistry DO without any
+    Artifacts dependency (just `GET /registry/status`).
 
-  No code change was made to remove this requirement for the spike; a
-  full local simulation would mean swapping `env.ARTIFACTS.*` for an
-  in-memory shim, which is a substantial sidequest and was deferred.
+  **Resolved in code (Oct 14):** rather than require a paid account, the
+  spike now runs fully offline by default. `src/artifacts-local.ts` adds
+  `LocalArtifacts`, a Durable Object implementing the Artifacts surface the
+  spike uses (`importRepo`, `forkRepo`, `createToken`, `commitFiles`,
+  `mergeTask`) on real `isomorphic-git` repositories, and `wrangler.toml`
+  binds it while omitting `[[artifacts]]`. `src/index.ts` selects the
+  provider at runtime, and both paths share the same merge + test-gate
+  primitives.
+
+  The shim models each Artifacts repo as a branch in one shared in-memory
+  git store, so a fork is a ref write and "pushing trunk" is the ref
+  advance `git.merge` already performed. Its limits are stated in the module
+  header: a deterministic seeded trunk (not a clone of the real upstream),
+  opaque tokens rather than scoped Cloudflare tokens, DO-memory state, and a
+  single mutex that serializes local merges.

@@ -10,7 +10,9 @@
 ## Pre-recording checklist (T–30 min)
 
 - [ ] `npm install` clean on a fresh clone (proves the run instructions)
-- [ ] `npx wrangler login` done on the recording account
+- [ ] **No Cloudflare login needed.** The default config runs offline against
+      the bundled Artifacts shim (`src/artifacts-local.ts`). `npx wrangler login` is
+      only required if you switch to real Artifacts on a paid plan.
 - [ ] Two terminals open side-by-side:
   - left: `npm run dev` (the Worker, logs visible)
   - right: ready to run `npm run simulate`
@@ -29,7 +31,11 @@ Cut straight to the dashboard at `127.0.0.1:8787`. All counters at zero. Trunk g
 > VO: _(silence for 3s, then)_ "This is a coordination console for thousands of agents
 > working on one codebase. We're going to start it from zero."
 
-[Cut to terminal right, type `curl -X POST http://127.0.0.1:8787/import`.]
+> VO: "And it doesn't leave you guessing. With nothing running it tells you the
+> exact command to start, and offers to fire the third stage on its own."
+
+[Point at the onboarding banner, then cut to terminal right and run
+`npm run simulate`.]
 
 ---
 
@@ -61,8 +67,9 @@ Cut straight to the dashboard at `127.0.0.1:8787`. All counters at zero. Trunk g
 
 [Camera: split — terminal right with the simulate harness, dashboard left.]
 
-> VO: "Let's start four concurrent agents on the same trunk. They each
-> pick a random footprint of one or two files."
+> VO: "Let's start four concurrent agents on the same trunk. Each one
+> declares the files it intends to touch before it starts — and two of
+> them declare the same file."
 
 [Type in terminal: `npm run simulate`. Hit enter. The harness prints four
 agent startup lines. The dashboard immediately shows one counter move.]
@@ -89,8 +96,8 @@ agent startup lines. The dashboard immediately shows one counter move.]
 
 [Cut to terminal showing the worker logs from `wrangler dev`.]
 
-> VO: "Look at the worker log. 'Speculative merge clean' — that's a
-> real merge commit, not a `Math.random() > 0.1`. We tested it. Four
+> VO: "Look at the worker log. 'Landed task-… on trunk' with a real commit
+> SHA — not a `Math.random() > 0.1`. We tested it. Four
 > cases in `scripts/test-merge.ts`: disjoint edits merge cleanly, same-file
 > edits surface as conflicts, re-merging is a no-op, broken package.json
 > fails the gate. They all pass."
@@ -109,9 +116,9 @@ agent startup lines. The dashboard immediately shows one counter move.]
 > and then writing to `src/auth.js`. We treat that as a footprint
 > violation and route it to the LLM resolver."
 
-[In a separate terminal: `curl -X POST http://127.0.0.1:8787/demo/conflict`.
-The dashboard resolver counter ticks up, an event-feed row appears:
-`resolver` `residual conflict routed to LLM resolver`.]
+[Click **Trigger resolver beat** on the dashboard — or `curl -X POST
+http://127.0.0.1:8787/demo/conflict` from a terminal. The resolver counter
+ticks up and an event-feed row appears naming the offending agent.]
 
 > VO: "Notice: **prevent** said no in the registry, but **integrate** said
 > 'trunk is fine, ship it', and only **negotiate** said 'this agent went

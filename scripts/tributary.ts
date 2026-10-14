@@ -308,25 +308,35 @@ Examples:
 }
 
 // ── dispatch ──────────────────────────────────────────────────────────────────
-
-if (!command || command === "--help" || command === "help") {
-	showHelp();
-} else if (command === "claim") {
-	await cmdClaim(rest);
-} else if (command === "release") {
-	await cmdRelease();
-} else if (command === "status") {
-	await cmdStatus();
-} else if (command === "fork") {
-	await cmdFork(rest[0]);
-} else if (command === "commit") {
-	await cmdCommit(rest);
-} else if (command === "conflict") {
-	await cmdConflict();
-} else if (command === "run") {
-	await cmdRun(rest);
-} else {
-	console.error(`Unknown command: ${command}`);
-	showHelp();
-	process.exit(1);
+//
+// Kept inside `main()` instead of using top-level `await`: package.json sets
+// `"type": "commonjs"`, so tsx/esbuild emits this file as CJS, where top-level
+// await is a syntax error and every command fails to load.
+async function main() {
+	if (!command || command === "--help" || command === "help") {
+		showHelp();
+	} else if (command === "claim") {
+		await cmdClaim(rest);
+	} else if (command === "release") {
+		await cmdRelease();
+	} else if (command === "status") {
+		await cmdStatus();
+	} else if (command === "fork") {
+		await cmdFork(rest[0]);
+	} else if (command === "commit") {
+		await cmdCommit(rest);
+	} else if (command === "conflict") {
+		await cmdConflict();
+	} else if (command === "run") {
+		await cmdRun(rest);
+	} else {
+		console.error(`Unknown command: ${command}`);
+		showHelp();
+		process.exit(1);
+	}
 }
+
+main().catch((err) => {
+	console.error(err instanceof Error ? err.message : err);
+	process.exit(1);
+});

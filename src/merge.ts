@@ -2,10 +2,26 @@ import git from "isomorphic-git";
 import http from "isomorphic-git/http/web";
 import { MemoryFS } from "./memory-fs";
 
+export interface ConflictSide {
+	file: string;
+	ours: string;
+	theirs: string;
+}
+
 export type MergeOutcome =
 	| { status: "merged"; commit: string }
 	| { status: "already-merged" }
-	| { status: "conflict"; conflictedFiles: string[] }
+	| {
+			status: "conflict";
+			conflictedFiles: string[];
+			/**
+			 * Each side's full file content at both heads, captured before the
+			 * aborted-merge workspace is discarded. The task repo itself never
+			 * carries conflict markers (we merge with abortOnConflict), so
+			 * without this the resolver has nothing to resolve.
+			 */
+			sides: ConflictSide[];
+	  }
 	| { status: "failed"; reason: string };
 
 export interface RemoteRepo {
@@ -37,13 +53,34 @@ const authFor = (token: string) => () => ({
  * locally. Kept free of the Artifacts transport so it can be exercised in a
  * plain Node test harness.
  */
+/** Provenance stamped into the merge commit message as git trailers. */
+export interface MergeContext {
+	agentId?: string;
+	footprint?: string[];
+	resolved?: boolean;
+}
+
 export async function mergeBranches(
 	fs: MemoryFS,
 	dir: string,
 	ours: string,
 	theirs: string,
+	resolutions?: Record<string, string>,
+	context?: MergeContext,
 ): Promise<MergeOutcome> {
 	await git.checkout({ fs, dir, ref: ours });
+
+	// Provenance travels with the commit ("the why travels with the commit"),
+	// addressing the context-preservation criterion — readable via git log.
+	const trailers = [
+		context?.agentId ? `Tributary-Agent: ${context.agentId}` : "",
+		context?.footprint?.length
+			? `Tributary-Footprint: ${context.footprint.join(", ")}`
+			: "",
+		context?.resolved ? "Tributary-Resolved: true" : "",
+	]
+		.filter(Boolean)
+		.join("\n");
 
 	try {
 		const result = await git.merge({
@@ -52,8 +89,30 @@ export async function mergeBranches(
 			ours,
 			theirs,
 			author: MERGE_AUTHOR,
-			message: `merge: land ${theirs} via Tributary`,
+			message:
+				`merge: land ${theirs} via Tributary` +
+				(trailers ? `\n\n${trailers}` : ""),
 			abortOnConflict: true,
+			// Resolver output rides the queue message and is applied here, as a
+			// merge driver: the resolution becomes the merged text for its file,
+			// producing a real merge commit the test gate then verifies. Editing
+			// the task branch and re-merging can't work — the merge base never
+			// moves, so any content ≠ ours would conflict again. Files the
+			// resolver didn't cover still report as real conflicts.
+			mergeDriver: resolutions
+				? ({ path }) => {
+						// The driver receives the basename ("index.js"), while
+						// resolutions are keyed by repo-relative path ("src/index.js").
+						const mergedText =
+							resolutions[path] ??
+							Object.keys(resolutions)
+								.filter((k) => k.endsWith(`/${path}`))
+								.map((k) => resolutions[k])[0];
+						return mergedText !== undefined
+							? { cleanMerge: true, mergedText }
+							: { cleanMerge: false, mergedText: "" };
+					}
+				: undefined,
 		});
 		if (result.alreadyMerged) return { status: "already-merged" };
 		// git.merge advances the ref but leaves the workdir stale; force a
@@ -64,13 +123,44 @@ export async function mergeBranches(
 	} catch (err) {
 		if ((err as { code?: string })?.code === "MergeConflictError") {
 			const data = (err as { data?: { filepaths?: string[] } }).data;
+			const conflictedFiles = data?.filepaths ?? [];
 			return {
 				status: "conflict",
-				conflictedFiles: data?.filepaths ?? [],
+				conflictedFiles,
+				sides: await readConflictSides(fs, dir, ours, theirs, conflictedFiles),
 			};
 		}
 		throw err;
 	}
+}
+
+/** Each conflicted file's content at both heads — the resolver's raw material. */
+async function readConflictSides(
+	fs: MemoryFS,
+	dir: string,
+	ours: string,
+	theirs: string,
+	files: string[],
+): Promise<ConflictSide[]> {
+	const [oursOid, theirsOid] = await Promise.all([
+		git.resolveRef({ fs, dir, ref: ours }),
+		git.resolveRef({ fs, dir, ref: theirs }),
+	]);
+	const read = async (oid: string, file: string) => {
+		try {
+			const { blob } = await git.readBlob({ fs, dir, oid, filepath: file });
+			return new TextDecoder().decode(blob);
+		} catch {
+			return "";
+		}
+	};
+	return Promise.all(
+		files.map(async (file) => ({
+			file,
+			ours: await read(oursOid, file),
+			theirs: await read(theirsOid, file),
+		})),
+	);
 }
 
 /**
@@ -104,6 +194,10 @@ export async function runTestGate(
 export async function mergeTaskIntoTrunk(opts: {
 	trunk: RemoteRepo;
 	task: RemoteRepo;
+	/** Resolver-provided content per file, applied via mergeDriver on retry. */
+	resolutions?: Record<string, string>;
+	/** Provenance stamped into the merge commit message. */
+	context?: MergeContext;
 }): Promise<MergeOutcome> {
 	const dir = "/merge-workspace";
 	const fs = new MemoryFS();
@@ -146,6 +240,8 @@ export async function mergeTaskIntoTrunk(opts: {
 		dir,
 		BRANCH,
 		`refs/remotes/task/${BRANCH}`,
+		opts.resolutions,
+		opts.context,
 	);
 	if (outcome.status === "conflict") return outcome;
 

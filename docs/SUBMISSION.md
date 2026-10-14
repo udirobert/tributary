@@ -50,9 +50,13 @@ submission form. Sections are pre-cut for the form fields.
 > `abortOnConflict`, runs the test gate (the spike validates
 > `package.json` parses; production deploys a Sandbox-run test), and
 > pushes the advanced trunk only when both pass. Conflicts and gate
-> failures route to the resolver, which holds GitLab-Duo-style scoped
-> privileges: read by default, write token minted only on an approved
-> resolution.
+> failures route to the resolver, which receives both sides of each
+> conflicted file (captured at merge time) and returns resolved content —
+> the task re-enters the queue once, the retried merge applies the
+> resolution through a `mergeDriver`, and the test gate re-verifies before
+> trunk moves. A resolution only lands when green. On remote repos the
+> resolver holds GitLab-Duo-style scoped privileges: read by default,
+> write token minted only on an approved resolution.
 >
 > The live dashboard polls `/registry/status` every 1.5s and shows
 > trunk state, active claims, the waitlist, and the three counters —
@@ -68,8 +72,18 @@ submission form. Sections are pre-cut for the form fields.
   TTLs, live stats — single-writer per region for free)
 - **Queues** — `merge-queue` with `max_concurrency = 1` to serialize
   speculative merges
-- **Artifacts** — `import` brings upstream (`mde/ejs`) into
-  `ejs-trunk`; `fork` per task; `createToken` for scoped write access
+- **Artifacts** — `import` brings upstream (`mde/ejs`) into `ejs-trunk`;
+  `fork` per task; `createToken` for scoped write access. The default config
+  runs against a bundled in-worker shim of this surface
+  (`src/artifacts-local.ts`), because the real binding needs a Workers paid
+  plan and has no local simulator; adding the `[[artifacts]]` binding switches
+  to the real thing with no source changes
+- **Workers AI** — `@cf/meta/llama-3.1-8b-instruct-fast` for LLM conflict
+  resolution in the last-resort resolver; resolved contents are applied via a
+  `mergeDriver` on the retried merge and re-verified by the test gate before
+  landing. Optional and remote: the `[ai]` binding is the one binding in the
+  default config that reaches the network, and the resolver falls back to a
+  deterministic yield-to-trunk resolution when it is absent or the call fails.
 - **isomorphic-git** (npm) — three-way merge + Git protocol client
   against Artifacts
 
@@ -83,11 +97,23 @@ npm run dev        # in terminal 1
 npm run simulate   # in terminal 2 — spawns 4 concurrent agents
 ```
 
-Then open <http://127.0.0.1:8787/>. The merge engine is unit-tested
-locally: `npm run test:merge` runs four cases (clean merge, real
-conflict, already-merged, gate failure) against an in-memory git repo.
+Then open <http://127.0.0.1:8787/>. The default config runs fully offline —
+no Cloudflare account or `wrangler login` required. The merge engine is
+unit-tested locally: `npm run test:merge` runs four cases (clean merge, real
+conflict, already-merged, gate failure) against an in-memory git repo, and
+`npm run simulate` self-checks that every agent got a claim, an overlapping
+claim was refused, and each task passed through the merge queue.
 
----
+A real agent (or human) can also drive the full lifecycle with the `tributary`
+CLI:
+
+```sh
+npm run tributary -- run src/auth.ts src/utils.ts
+# or step-by-step:
+npm run tributary -- claim src/auth.ts
+npm run tributary -- status
+npm run tributary -- conflict   # trigger resolver beat; watch dashboard
+```
 
 ## Why this wins
 
