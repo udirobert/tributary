@@ -10,7 +10,7 @@
  *
  * The footprints below deliberately overlap (Alpha and Bravo both touch
  * `src/index.js`) so the run always exercises stage 1 (a claim is refused and
- * queued) and produces at least one same-file change for the merge queue to
+ * queued) and produces at least one same-file change for the confluence to
  * reconcile. Every agent edits a file *inside* its declared footprint, so work
  * reaches the real merge engine instead of being filtered as a violation.
  *
@@ -142,7 +142,7 @@ async function runAgent(task: Task): Promise<boolean> {
 			edits: { [edit.path]: edit.content },
 		});
 		console.log(
-			`[${agentId}] committed ${edit.path} (${commit.commit?.slice(0, 8)}), merge queued`,
+			`[${agentId}] committed ${edit.path} (${commit.commit?.slice(0, 8)}), queued for the confluence`,
 		);
 		return true;
 	} finally {
@@ -152,7 +152,7 @@ async function runAgent(task: Task): Promise<boolean> {
 	}
 }
 
-/** Wait for the serial merge queue to drain (each task increments totalMerges). */
+/** Wait for the serial confluence to drain (each task increments totalMerges). */
 async function waitForMerges(expected: number, timeoutMs = 30_000) {
 	const deadline = Date.now() + timeoutMs;
 	let status = await api("/registry/status");
@@ -189,7 +189,7 @@ async function main() {
 	const results = await Promise.all(TASKS.map(runAgent));
 	const granted = results.filter(Boolean).length;
 
-	console.log("\nwaiting for the merge queue to drain…");
+	console.log("\nwaiting for the confluence to drain…");
 	const status = await waitForMerges(before.stats.totalMerges + TASKS.length);
 
 	const merges = status.stats.totalMerges - before.stats.totalMerges;

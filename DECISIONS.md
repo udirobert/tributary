@@ -149,6 +149,38 @@ Recorded as built; these supersede the Step-0 plan above where they differ.
    lives in `main()` with a `.catch()`, matching `simulate.ts` and
    `test-merge.ts`. Use that shape for new scripts, or move the package to ESM.
 
+## Theme Pass — the river vocabulary (Oct 14, 2026)
+
+The project is named Tributary, but the metaphor had been brand-only: the name
+was everywhere and the imagery almost nowhere. This pass makes the metaphor the
+framing — in code comments and docstrings, log labels, and prose.
+
+| Concept                  | River name     | Function  |
+| ------------------------ | -------------- | --------- |
+| One agent's change       | **tributary**  | —         |
+| Verified main branch     | **trunk**      | —         |
+| Agent's isolated repo    | **fork**       | —         |
+| Stage 1 — claim registry | **watershed**  | prevent   |
+| Stage 2 — merge queue    | **confluence** | integrate |
+| Stage 3 — resolver       | **rapids**     | negotiate |
+
+The metaphor is not decoration: git is already a river (trunk, fork, branch,
+upstream, downstream), so the vocabulary surfaces what the tooling already
+implies. The one word it adds at the core is **confluence** — the point where
+changes join the trunk, previously the generic "merge queue".
+
+**Decision: infrastructure identifiers stay.** The `MERGE_QUEUE` binding, the
+`merge-queue` queue name, `ClaimRegistry`, `LocalArtifacts`, route paths, and
+class/function names are plumbing, not prose — renaming them would churn config
+and commit history for no reader-visible gain. The river vocabulary is applied
+only to human-facing surfaces: comments, the queue-consumer log prefix
+(`[MergeQueue]` → `[Confluence]`), the merge commit subject, the dashboard, and
+the docs. The resolver's log prefix remains `[Resolver]` — it names the
+mechanism, while "rapids" is that stage's name in the pipeline. The merge
+commit author identity is themed along with the subject — `Tributary Merge
+Queue` → `Tributary Confluence` — so the vocabulary is consistent in the landed
+commits a reader inspects.
+
 ## Resolved Questions
 
 - Does `wrangler dev` (local) emulate Artifacts bindings, or do import/fork/token flows require `wrangler dev` to a real namespace? **Resolved Oct 14, 2026.**
@@ -177,7 +209,7 @@ Recorded as built; these supersede the Step-0 plan above where they differ.
     switch — `src/index.ts` prefers `env.ARTIFACTS` automatically.
   - The merge engine (`src/merge.ts`) and the test gate are also
     exercisable standalone via `npm run test:merge`, which builds trunk +
-    task histories in `MemoryFS` and runs the four-case harness.
+    task histories in `MemoryFS` and runs the five-case harness.
   - The dashboard renders and live-counts the ClaimRegistry DO without any
     Artifacts dependency (just `GET /registry/status`).
 

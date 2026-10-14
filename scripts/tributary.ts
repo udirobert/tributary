@@ -273,7 +273,7 @@ async function cmdRun(files: string[]) {
 
 	clearState();
 	console.log(
-		`\n✅ Done. Watch the merge queue land your changes at ${WORKER}/`,
+		`\n✅ Done. Watch the confluence land your changes at ${WORKER}/`,
 	);
 }
 

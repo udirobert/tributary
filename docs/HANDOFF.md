@@ -1,6 +1,7 @@
 # Tributary — handoff checklist
 
-Last updated: Oct 14, 2026 (after the offline-run and dashboard passes).
+Last updated: Oct 14, 2026 (after the river-vocabulary pass, README banner, and
+social-preview art).
 
 ## Where the project stands
 
@@ -40,6 +41,10 @@ but defined with 2 param(s)`).
   If Workers AI rate-limits mid-run (error 1031 observed once), the resolver
   falls back to yield-to-trunk and the task still lands — the demo survives
   it, and the log labels the fallback honestly.
+- The outward-facing surfaces speak the project's river vocabulary
+  (watershed → confluence → rapids): the dashboard, README, submission copy,
+  demo script, code comments, and the `[Confluence]` queue log. The README
+  carries a `docs/hero.svg` banner; `docs/social-preview.png` matches it.
 
 ## What is left
 
@@ -53,6 +58,11 @@ but defined with 2 param(s)`).
    ```
 
    Then fill the resulting URL into `docs/SUBMISSION.md` ("Links to include").
+
+   Then set the social preview: **Settings → General → Social preview →
+   Upload an image**, using `docs/social-preview.png` (1280×640, 253 KB; the
+   SVG source is `docs/social-preview.svg`). This is a repository setting, not
+   a committed file — it cannot be set from git.
 
 2. **Submit the form**, using `docs/SUBMISSION.md` for the field text.
 
@@ -69,6 +79,16 @@ but defined with 2 param(s)`).
 5. **(Stretch) Richer gate.** The gate is a `package.json` parse plus an
    acorn arity check over the merged tree; a production version runs the
    repo's real test suite in a Cloudflare Sandbox before the merge lands.
+
+## River vocabulary (theme)
+
+The outward-facing surfaces speak in the project's river metaphor: each agent's
+change is a **tributary**, the verified branch is the **trunk**, and the three
+stages are the **watershed** (prevent) → **confluence** (integrate) → **rapids**
+(negotiate). Applied in the dashboard, the docs, code comments, and the
+queue-consumer log prefix (`[Confluence]`). Infrastructure identifiers
+(`MERGE_QUEUE`, the `merge-queue` queue name, `ClaimRegistry`) are deliberately
+unchanged — they are plumbing, not prose. See DECISIONS.md.
 
 ## Known limitations
 
@@ -95,8 +115,8 @@ but defined with 2 param(s)`).
 | `src/resolver.ts`        | new      | Conflict-side resolution via Workers AI + staged-privilege clone path |
 | `src/dashboard.ts`       | new      | Coordination console: pipeline strip, live feed, onboarding           |
 | `src/memory-fs.ts`       | modified | In-memory FS for isomorphic-git (`readlink`/`symlink`, fsError)       |
-| `scripts/simulate.ts`    | modified | 4-agent harness, deterministic footprints, self-checking              |
-| `scripts/test-merge.ts`  | new      | 4-case merge-engine harness                                           |
+| `scripts/simulate.ts`    | modified | 5-agent harness, deterministic footprints, self-checking              |
+| `scripts/test-merge.ts`  | new      | 5-case merge-engine harness                                           |
 | `scripts/tributary.ts`   | new      | Agent-facing CLI (`claim / fork / commit / release / run`)            |
 | `wrangler.toml`          | modified | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`      |
-| `docs/`                  | new      | Demo script, submission writeup, this checklist                       |
+| `docs/`                  | new      | Demo script, submission writeup, checklist, hero + social preview art |

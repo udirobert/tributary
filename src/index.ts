@@ -10,6 +10,22 @@ import { LocalArtifacts } from "./artifacts-local";
 
 export { LocalArtifacts };
 
+/**
+ * Tributary — the coordination Worker.
+ *
+ * The pipeline is a river. Each agent's change is a **tributary**; the verified
+ * main branch is the **trunk**; the stages along the way are named for the
+ * water. Stage 1, the **watershed** (`ClaimRegistry`), refuses and queues
+ * overlapping footprints before any work starts. Stage 2, the **confluence**
+ * (`MERGE_QUEUE`), is the serial place where finished tributaries join the
+ * trunk — each landed only when a real three-way merge and the test gate are
+ * green. Stage 3, the **rapids** (`resolveConflict`), is the last resort for
+ * the residual conflicts that survived both.
+ *
+ * Infrastructure identifiers keep their original names — `MERGE_QUEUE`,
+ * `merge-queue`, `ClaimRegistry` — because they are plumbing, not prose; the
+ * river vocabulary lives in comments, log labels, and the docs.
+ */
 export interface Env {
 	// Real Cloudflare Artifacts binding: remote-only, requires a Workers paid
 	// plan, and has no local simulator, so it is only declared by configs that
@@ -77,7 +93,7 @@ export interface RegistryEvent {
 	detail: string;
 }
 
-/** Context the queue consumer hands back when a task lands or is rejected. */
+/** Context the confluence hands back when a tributary lands or is rejected. */
 export interface MergeResult {
 	success: boolean;
 	agentId?: string;
@@ -86,6 +102,11 @@ export interface MergeResult {
 	reason?: string;
 }
 
+/**
+ * The watershed: partitions the flow so two tributaries never hold the same
+ * file at once. Non-overlapping footprints are granted immediately;
+ * overlapping ones are queued and promoted when the holder releases.
+ */
 export class ClaimRegistry extends DurableObject {
 	private claims: Map<string, Claim> = new Map();
 	private waitlist: QueuedClaim[] = [];
@@ -430,10 +451,11 @@ export default {
 				commit = result.commit;
 			}
 
-			// Trigger merge queue. We forward the agent's declared footprint and
-			// the files it actually changed so the queue consumer can detect
-			// footprint violations (i.e. an agent that touched a file it didn't
-			// declare) and route those to the resolver as residual conflicts.
+			// Hand the finished tributary to the confluence (the serial merge
+			// queue). We forward the agent's declared footprint and the files it
+			// actually changed so the confluence can detect footprint violations
+			// (i.e. an agent that touched a file it didn't declare) and route
+			// those to the rapids as residual conflicts.
 			const changedList =
 				Array.isArray(changedFiles) && changedFiles.length > 0
 					? changedFiles
@@ -485,6 +507,7 @@ export default {
 		);
 	},
 
+	/** The confluence: land finished tributaries on the trunk, one at a time. */
 	async queue(batch: MessageBatch<any>, env: Env): Promise<void> {
 		const id = env.CLAIM_REGISTRY.idFromName("global");
 		const stub = env.CLAIM_REGISTRY.get(id);
@@ -492,7 +515,7 @@ export default {
 		for (const message of batch.messages) {
 			const task = message.body;
 			console.log(
-				`[MergeQueue] Processing task from ${task.agentId} (repo: ${task.taskRepo})`,
+				`[Confluence] Processing task from ${task.agentId} (repo: ${task.taskRepo})`,
 			);
 
 			// Footprint-violation pre-filter.
@@ -521,9 +544,9 @@ export default {
 
 			if (outOfFootprint.length > 0) {
 				console.log(
-					`[MergeQueue] ❌ Footprint violation from ${task.agentId}: ` +
+					`[Confluence] ❌ Footprint violation from ${task.agentId}: ` +
 						`changed ${outOfFootprint.join(", ")} outside declared ` +
-						`footprint ${declared.join(", ") || "(none)"}. Routing to resolver.`,
+						`footprint ${declared.join(", ") || "(none)"}. Routing to the rapids.`,
 				);
 				await stub.recordMergeResult({
 					success: false,
@@ -563,7 +586,7 @@ export default {
 					});
 				} catch (err) {
 					console.error(
-						`[MergeQueue] Merge attempt errored for ${task.taskRepo}:`,
+						`[Confluence] Merge attempt errored for ${task.taskRepo}:`,
 						err,
 					);
 					outcome = {
@@ -584,7 +607,7 @@ export default {
 					});
 				} catch (err) {
 					console.error(
-						`[MergeQueue] Local merge errored for ${task.taskRepo}:`,
+						`[Confluence] Local merge errored for ${task.taskRepo}:`,
 						err,
 					);
 					outcome = {
@@ -596,7 +619,7 @@ export default {
 
 			if (outcome.status === "merged" || outcome.status === "already-merged") {
 				console.log(
-					`[MergeQueue] ✅ Landed ${task.taskRepo} on trunk ` +
+					`[Confluence] ✅ Landed ${task.taskRepo} on trunk ` +
 						`(${outcome.status === "merged" ? outcome.commit : "no-op"})`,
 				);
 				await stub.recordMergeResult({
@@ -611,8 +634,8 @@ export default {
 						? `conflict in ${outcome.conflictedFiles.join(", ")}`
 						: outcome.reason;
 				console.log(
-					`[MergeQueue] ❌ ${task.agentId} did not land: ${reason}. ` +
-						`Routing to resolver.`,
+					`[Confluence] ❌ ${task.agentId} did not land: ${reason}. ` +
+						`Routing to the rapids.`,
 				);
 				await stub.recordMergeResult({
 					success: false,
@@ -642,7 +665,7 @@ export default {
 					!task.resolverRetry
 				) {
 					console.log(
-						`[MergeQueue] Resolver produced a resolution for ${task.taskRepo} — re-queuing merge.`,
+						`[Confluence] Resolver produced a resolution for ${task.taskRepo} — re-queuing merge.`,
 					);
 					await env.MERGE_QUEUE.send({
 						...task,

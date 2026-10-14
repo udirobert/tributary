@@ -142,6 +142,21 @@ export const DASHBOARD_HTML = `<!doctype html>
     }
   }
 
+  /* Tributary band — streams converging into the trunk at the confluence. */
+  .flowbar { margin: 0 0 22px; }
+  .flowbar svg { width: 100%; height: auto; display: block; }
+  .flowbar .stream {
+    fill: none; stroke: url(#streamGrad); stroke-width: 2; stroke-linecap: round;
+    stroke-dasharray: 5 11; animation: flow 7s linear infinite;
+  }
+  .flowbar .trunkline { fill: none; stroke: url(#trunkGrad); stroke-width: 7; stroke-linecap: round; }
+  .flowbar .node { fill: #a78bfa; }
+  @keyframes flow { to { stroke-dashoffset: -160; } }
+  .flowbar-cap {
+    text-align: center; margin-top: 4px; font-size: 10.5px; letter-spacing: 1.4px;
+    text-transform: uppercase; color: var(--ink-dim);
+  }
+
   .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
   @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   .grid + .grid { margin-top: 20px; }
@@ -234,7 +249,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div class="brand-logo">🌊</div>
       <div>
         <div class="brand-title">Tributary · Coordination Console</div>
-        <div class="brand-sub">Conflict prevention · Speculative merge queue · LLM resolver of last resort</div>
+        <div class="brand-sub">Every change is a tributary · the confluence joins it to the trunk · the rapids are the last resort</div>
       </div>
     </div>
     <div class="live" id="livePill"><span class="dot"></span><span id="liveText">Connecting…</span></div>
@@ -243,8 +258,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   <main class="wrap">
     <p class="thesis">
       <strong>Thesis:</strong> conflicts are a scheduling problem first, and a negotiation problem last.
-      Agents declare a file footprint, work in isolated forks, and only land when the speculative merge
-      queue proves them clean. The LLM resolver is a safety net, not the spine.
+      Each agent&rsquo;s change is a <strong>tributary</strong> — declared at the watershed, joined to the
+      trunk at the confluence, and only the residual ever reaches the rapids. The LLM resolver is a safety
+      net, not the spine.
     </p>
 
     <section class="onboard" id="onboard" hidden>
@@ -252,8 +268,8 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div class="onboard-body">
         <div class="onboard-title">Nothing has happened yet</div>
         <div class="onboard-sub">
-          Start four concurrent agents in a second terminal — two of them will declare the same file.
-          Or trigger a single resolver beat to see stage 3 on its own.
+          Start five concurrent agents in a second terminal — two of them will declare the same file.
+          Or trigger a single resolver beat to see the rapids on their own.
         </div>
       </div>
       <div class="onboard-actions">
@@ -262,27 +278,50 @@ export const DASHBOARD_HTML = `<!doctype html>
       </div>
     </section>
 
-    <section class="pipeline" aria-label="The three stages">
+    <section class="pipeline" aria-label="The three stages: watershed, confluence, rapids">
       <div class="stage s1">
-        <div class="stage-head"><span class="stage-num">1</span><span class="stage-name">Prevent</span></div>
+        <div class="stage-head"><span class="stage-num">1</span><span class="stage-name">Watershed</span></div>
         <div class="stage-value" id="cPrev" aria-live="polite">0</div>
-        <div class="stage-help">Overlapping claims refused and queued before any work starts.</div>
+        <div class="stage-help">Prevent · Overlapping claims refused and queued before any work starts.</div>
       </div>
       <div class="stage s2">
-        <div class="stage-head"><span class="stage-num">2</span><span class="stage-name">Integrate</span></div>
+        <div class="stage-head"><span class="stage-num">2</span><span class="stage-name">Confluence</span></div>
         <div class="stage-value" id="cMerges" aria-live="polite">0</div>
-        <div class="stage-help">Three-way merges that passed the test gate and landed on trunk.</div>
+        <div class="stage-help">Integrate · Three-way merges that passed the test gate and landed on the trunk.</div>
       </div>
       <div class="stage s3">
-        <div class="stage-head"><span class="stage-num">3</span><span class="stage-name">Negotiate</span></div>
+        <div class="stage-head"><span class="stage-num">3</span><span class="stage-name">Rapids</span></div>
         <div class="stage-value" id="cRes" aria-live="polite">0</div>
-        <div class="stage-help">Residual conflicts that survived both gates. This number should stay small.</div>
+        <div class="stage-help">Negotiate · Residual conflicts that survived both gates. This number should stay small.</div>
       </div>
+    </section>
+
+    <section class="flowbar" aria-hidden="true">
+      <svg viewBox="0 0 1000 90" role="img" focusable="false">
+        <defs>
+          <linearGradient id="streamGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#38bdf8" stop-opacity="0.12" />
+            <stop offset="0.62" stop-color="#38bdf8" stop-opacity="0.85" />
+          </linearGradient>
+          <linearGradient id="trunkGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#a78bfa" stop-opacity="0.9" />
+            <stop offset="1" stop-color="#38bdf8" stop-opacity="0.9" />
+          </linearGradient>
+        </defs>
+        <path class="stream" d="M0,8 C 300,8 430,43 620,45" />
+        <path class="stream" d="M0,27 C 300,27 440,43 620,45" />
+        <path class="stream" d="M0,45 C 320,45 460,45 620,45" />
+        <path class="stream" d="M0,63 C 300,63 440,47 620,45" />
+        <path class="stream" d="M0,82 C 300,82 430,47 620,45" />
+        <path class="trunkline" d="M620,45 L1000,45" />
+        <circle class="node" cx="620" cy="45" r="4" />
+      </svg>
+      <div class="flowbar-cap">Many tributaries · one trunk — the confluence is where they join</div>
     </section>
 
     <div class="grid">
       <section class="panel">
-        <h2>Trunk status</h2>
+        <h2>Trunk state</h2>
         <div class="trunk">
           <div id="trunkLight" class="trunk-light green" aria-hidden="true">✓</div>
           <div class="trunk-meta">
@@ -294,21 +333,21 @@ export const DASHBOARD_HTML = `<!doctype html>
       </section>
 
       <section class="panel">
-        <h2>Live event feed</h2>
+        <h2>Live flow</h2>
         <div class="feed" id="feed" aria-live="polite"><div class="empty">Waiting for activity…</div></div>
       </section>
     </div>
 
     <div class="grid">
       <section class="panel">
-        <h2>Active claims</h2>
+        <h2>Watershed · claims</h2>
         <table id="claims">
           <thead><tr><th>Agent</th><th>Declared footprint</th><th>Expires</th></tr></thead>
           <tbody><tr><td colspan="3" class="empty">No active claims.</td></tr></tbody>
         </table>
       </section>
       <section class="panel">
-        <h2>Waitlist</h2>
+        <h2>Watershed · waitlist</h2>
         <table id="waitlist">
           <thead><tr><th>Agent</th><th>Declared footprint</th><th>Status</th></tr></thead>
           <tbody><tr><td colspan="3" class="empty">No waitlisted agents.</td></tr></tbody>
@@ -318,7 +357,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   </main>
 
   <footer>
-    Tributary spike · <a href="/registry/status">/registry/status</a> · built for the Cloudflare “Build the next GitHub” challenge
+    Tributary spike · many tributaries, one trunk · <a href="/registry/status">/registry/status</a> · built for the Cloudflare “Build the next GitHub” challenge
   </footer>
 
 <script>

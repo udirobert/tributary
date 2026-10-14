@@ -1,22 +1,30 @@
 # Tributary
 
+![Tributary — many tributaries converging into one verified trunk](docs/hero.svg)
+
 A coordination layer for thousands of agents working on one codebase — built for
 Cloudflare's "Build the next GitHub" challenge (Oct 2026).
+
+**Many tributaries, one trunk.** Every agent's change is a **tributary**: it is
+declared at the **watershed**, joins the trunk at the **confluence**, and only
+the residual reaches the **rapids**. The metaphor is the architecture — the
+three stages below are named for it.
 
 **Thesis: conflicts are a scheduling problem first and a negotiation problem
 last.** Tributary inverts the PR model: there are no pull requests. The unit of
 work is a _change with a declared footprint_, continuously integrated through
 three stages:
 
-1. **Claim (prevent).** Before starting, an agent declares the files it intends
-   to touch. A Durable Object claim registry grants non-overlapping claims,
-   queues overlapping ones, and expires claims via TTL so crashed agents never
-   hold locks.
-2. **Land (integrate).** Each task works in its own forked Cloudflare Artifacts
-   repo with a short-lived write token. Finished changes enter a sequential
-   speculative merge queue (rebase onto trunk, run tests, advance a verified
-   trunk only when green).
-3. **Negotiate (resolve).** Only changes that clear stages 1–2 and still
+1. **Watershed (prevent).** Before starting, an agent declares the files it
+   intends to touch. A Durable Object claim registry partitions that flow:
+   non-overlapping claims are granted, overlapping ones are queued, and claims
+   expire via TTL so crashed agents never hold locks.
+2. **Confluence (integrate).** Each task works in its own forked Cloudflare
+   Artifacts repo with a short-lived write token. Finished changes enter a
+   sequential speculative merge queue — the confluence where tributaries join
+   the trunk (rebase onto trunk, run tests, advance a verified trunk only when
+   green).
+3. **Rapids (negotiate).** Only changes that clear stages 1–2 and still
    conflict reach an LLM resolver agent — a last resort, not the core path.
 
 ## Architecture
@@ -54,22 +62,22 @@ Worker that declares it will not boot on a free account (see DECISIONS.md).
 ```sh
 npm install        # also wires lint-staged/husky hooks + the TS6 lint shim
 npm run dev        # terminal 1: wrangler dev at http://127.0.0.1:8787
-npm run simulate   # terminal 2: spawn 4 concurrent agents at the endpoints
-npm run test:merge # optional: runs the merge-engine harness locally (4 cases)
+npm run simulate   # terminal 2: spawn 5 concurrent agents at the endpoints
+npm run test:merge # optional: runs the merge-engine harness locally (5 cases)
 open http://127.0.0.1:8787/   # live dashboard
 ```
 
 `npm run simulate` checks the pipeline rather than only printing logs: all
-four agents must get a claim, an overlapping claim must be refused and
-queued, and every task must pass through the serial merge queue — it exits
+five agents must get a claim, an overlapping claim must be refused and
+queued, and every task must pass through the serial confluence — it exits
 non-zero otherwise.
 
-The run shows the claim registry granting non-overlapping agents immediately
-and queueing overlapping ones (the queued claim is promoted automatically when
-the holder releases), then the merge queue consuming tasks one at a time. Each
+The run shows the watershed granting non-overlapping agents immediately and
+queueing overlapping ones (the queued tributary is promoted automatically when
+the holder releases), then the confluence consuming tasks one at a time. Each
 task is a real three-way `isomorphic-git` merge that only advances trunk when
 the merge and the test gate both pass; two agents editing the same line of
-`src/index.js` surfaces as a real conflict and is routed to the resolver.
+`src/index.js` surfaces as a real conflict and is routed to the rapids.
 
 The loop closes: the resolver gets both sides of each conflicted file
 (captured at merge time — `abortOnConflict` means conflict markers never reach
@@ -129,12 +137,13 @@ What works end-to-end:
   another). Agent-Echo in `npm run simulate` exercises it every run.
 - ✅ Queue consumer pre-filters footprint violations before spending a merge
 - ✅ Dashboard auto-refreshes every 1.5s: trunk state with the last landed
-  commit, a three-stage pipeline (prevent → integrate → negotiate), active
-  claims, waitlist, and an event feed driven by the registry's own activity
-  log. On a fresh start it shows the next command to run and a button that
+  commit, a three-stage pipeline named for the metaphor (watershed → confluence
+  → rapids), active claims, waitlist, and a flow feed driven by the registry's
+  own activity log. On a fresh start it shows the next command to run and a button that
   triggers the resolver beat in-page — no `curl` needed.
-- ✅ Merge engine unit-tested via `npm run test:merge` (clean merge, real
-  conflict, no-op re-merge, gate failure — all pass on an in-memory repo)
+- ✅ Merge engine unit-tested via `npm run test:merge` (five cases: clean
+  merge, real conflict, no-op re-merge, gate failure, and a semantic
+  signature-change conflict — all pass on an in-memory repo)
 - ✅ `npm run simulate` is self-checking and exits non-zero if the pipeline
   did not actually run
 - ✅ **Real** LLM resolver (`src/resolver.ts`): receives both sides of each

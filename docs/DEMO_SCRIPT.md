@@ -1,6 +1,6 @@
 # Tributary — Demo Video Script (target runtime: 6 min)
 
-**Project:** Tributary, a coordination layer for thousands of agents working on one codebase.
+**Project:** Tributary, a coordination layer for thousands of agents working on one codebase — many tributaries, one trunk.
 **Challenge:** Cloudflare "Build the next GitHub" (Oct 2026).
 **Format:** Screen capture + voiceover. Two terminals and a browser dashboard.
 **Tone:** Confident, dry, technical. No hype. Let the dashboard counters do the work.
@@ -43,7 +43,9 @@ Cut straight to the dashboard at `127.0.0.1:8787`. All counters at zero. Trunk g
 
 [Camera: dashboard. Counter still 0/0/0. Cursor hovers on the thesis paragraph.]
 
-> VO: "The thesis: **conflicts are a scheduling problem first, and a negotiation
+> VO: "The name is the model. Many tributaries, one trunk: every agent's change
+> is a tributary, and they all have to reach the trunk without colliding. The
+> thesis: **conflicts are a scheduling problem first, and a negotiation
 > problem last.** Every system that tries to coordinate many agents on one
 > codebase ends up doing the same thing in three stages. They prevent
 > overlapping work, they integrate changes, and they negotiate the
@@ -67,26 +69,27 @@ Cut straight to the dashboard at `127.0.0.1:8787`. All counters at zero. Trunk g
 
 [Camera: split — terminal right with the simulate harness, dashboard left.]
 
-> VO: "Let's start four concurrent agents on the same trunk. Each one
+> VO: "Let's start five concurrent agents on the same trunk. Each one
 > declares the files it intends to touch before it starts — and two of
 > them declare the same file."
 
-[Type in terminal: `npm run simulate`. Hit enter. The harness prints four
+[Type in terminal: `npm run simulate`. Hit enter. The harness prints five
 agent startup lines. The dashboard immediately shows one counter move.]
 
 > VO: "Watch the trunk indicator stay green. The agents are claiming
 > files. Two of them — Alpha and Bravo — picked the same file. The
-> second one didn't fail; it went to the waitlist. That's stage one.
-> The claim registry refused to grant an overlapping claim. Zero work
+> second one didn't fail; it went to the waitlist. That's the watershed:
+> the claim registry refused to grant an overlapping claim. Zero work
 > was wasted."
 
 [Wait for a "Claim queued" line. Point at the waitlist row in the dashboard.]
 
 > VO: "Now Alpha commits and releases its claim. Bravo retries, gets
-> granted, commits. Both tasks enter the merge queue. The queue runs
-> at concurrency one — that's deliberate — and each task fetches trunk,
-> fetches its own fork, does a real three-way merge with isomorphic-git,
-> runs a test gate, and pushes trunk. Watch the **Total merges** counter."
+> granted, commits. Both tributaries reach the confluence — the merge
+> queue. It runs at concurrency one, deliberately: each task fetches
+> trunk, fetches its own fork, does a real three-way merge with
+> isomorphic-git, runs a test gate, and pushes trunk. Watch the
+> **Total merges** counter."
 
 [Wait for the counter to tick up. Each tick corresponds to a clean merge.]
 
@@ -96,13 +99,14 @@ agent startup lines. The dashboard immediately shows one counter move.]
 
 [Cut to terminal showing the worker logs from `wrangler dev`.]
 
-> VO: "Look at the worker log. 'Landed task-… on trunk' with a real commit
-> SHA — not a `Math.random() > 0.1`. We tested it. Four
+> VO: "Look at the worker log. The `[Confluence]` lines land tasks on trunk
+> with a real commit SHA — not a `Math.random() > 0.1`. We tested it. Five
 > cases in `scripts/test-merge.ts`: disjoint edits merge cleanly, same-file
 > edits surface as conflicts, re-merging is a no-op, broken package.json
-> fails the gate. They all pass."
+> fails the gate, and a signature change that git merges cleanly still gets
+> caught by the semantic gate. They all pass."
 
-[Cut back to dashboard. Counter at ~4 merges, 1 prevented.]
+[Cut back to dashboard. Counter at ~5 merges, 1 prevented.]
 
 ---
 
@@ -110,22 +114,22 @@ agent startup lines. The dashboard immediately shows one counter move.]
 
 [Camera: dashboard. Point at the resolver-runs counter at 0.]
 
-> VO: "Now the third stage. Most of the time the resolver doesn't run,
-> because the scheduler did its job. But sometimes an agent does
-> something the registry can't pre-filter — like claiming `src/index.js`
-> and then writing to `src/auth.js`. We treat that as a footprint
-> violation and route it to the LLM resolver."
+> VO: "Now the rapids — the third stage. Most of the time the resolver
+> doesn't run, because the scheduler did its job. But sometimes an agent
+> does something the registry can't pre-filter — like claiming
+> `src/index.js` and then writing to `src/auth.js`. We treat that as a
+> footprint violation and route it to the LLM resolver."
 
 [Click **Trigger resolver beat** on the dashboard — or `curl -X POST
 http://127.0.0.1:8787/demo/conflict` from a terminal. The resolver counter
 ticks up and an event-feed row appears naming the offending agent.]
 
-> VO: "Notice: **prevent** said no in the registry, but **integrate** said
-> 'trunk is fine, ship it', and only **negotiate** said 'this agent went
-> outside its declared footprint'. The resolver gets scoped privileges
-> — read by default, write only on approval — same shape as GitLab's Duo
-> resolver. The point isn't to make the LLM clever. The point is to
-> make sure almost nothing reaches it."
+> VO: "Notice: the **watershed** said no in the registry, but the
+> **confluence** said 'trunk is fine, ship it', and only the **rapids**
+> said 'this agent went outside its declared footprint'. The resolver gets
+> scoped privileges — read by default, write only on approval — same shape
+> as GitLab's Duo resolver. The point isn't to make the LLM clever. The
+> point is to make sure almost nothing reaches it."
 
 ---
 
@@ -155,7 +159,8 @@ ticks up and an event-feed row appears naming the offending agent.]
 > VO: "Tributary is open source, MIT-licensed, runs on a Cloudflare
 > account in three commands. The repo is in the submission form. The
 > merge engine is real — `npm run test:merge` proves it. The dashboard
-> is live. **Scheduling first. Negotiation last.**"
+> is live. **Many tributaries. One trunk. Scheduling first, negotiation
+> last.**"
 
 [Fade out on the dashboard. Title card: `github.com/...` and
 `cloudflare.com/git-competition/`.]

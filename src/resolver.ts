@@ -2,6 +2,14 @@ import git from "isomorphic-git";
 import http from "isomorphic-git/http/web";
 import { MemoryFS } from "./memory-fs";
 
+/**
+ * The rapids — stage 3, the last resort. Everything here is residual: the
+ * conflicts that survived the watershed (overlapping claims refused up front)
+ * and the confluence (a real three-way merge plus the test gate). The resolver
+ * produces content; the confluence's merge engine applies it and re-gates
+ * before the trunk moves, so a resolution is verified, never trusted.
+ */
+
 // Workers AI is only available when [ai] binding is configured in wrangler.toml.
 // Typed loosely so the module compiles in both local and deployed contexts.
 export interface AiBinding {
@@ -152,7 +160,8 @@ export type ResolveResult =
 	| { status: "skipped"; files: string[] };
 
 /**
- * Resolve a residual conflict.
+ * Resolve a residual conflict — the rapids, reached only when the watershed
+ * and the confluence have both let a conflict through.
  *
  * Staged privileges (GitLab-Duo-style):
  *   - readToken  → clone; always required for a real repo.

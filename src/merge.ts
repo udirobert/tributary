@@ -3,6 +3,12 @@ import http from "isomorphic-git/http/web";
 import { parse } from "acorn";
 import { MemoryFS } from "./memory-fs";
 
+/**
+ * The confluence's instrument: a real three-way merge with a test gate. A
+ * finished tributary joins the trunk only when the merge is clean and the gate
+ * is green — otherwise the merge engine reports the conflict (or hands it to
+ * the rapids) and the trunk never moves. Nothing lands halfway.
+ */
 export interface ConflictSide {
 	file: string;
 	ours: string;
@@ -30,9 +36,11 @@ export interface RemoteRepo {
 	token: string;
 }
 
+// Author identity for landed merges — the confluence stamps its own name on
+// every commit it lands on the trunk.
 const MERGE_AUTHOR = {
-	name: "Tributary Merge Queue",
-	email: "merge-queue@tributary.dev",
+	name: "Tributary Confluence",
+	email: "confluence@tributary.dev",
 };
 
 const BRANCH = "main";
@@ -91,7 +99,7 @@ export async function mergeBranches(
 			theirs,
 			author: MERGE_AUTHOR,
 			message:
-				`merge: land ${theirs} via Tributary` +
+				`confluence: land ${theirs} on the trunk via Tributary` +
 				(trailers ? `\n\n${trailers}` : ""),
 			abortOnConflict: true,
 			// Resolver output rides the queue message and is applied here, as a
@@ -319,9 +327,10 @@ export async function runTestGate(
 }
 
 /**
- * Speculatively land a finished task repo on trunk: fetch both heads into an
- * in-memory repo, three-way merge, run the test gate, push the advanced
- * trunk. Trunk only moves on a clean, gate-green merge.
+ * Speculatively land a finished tributary on the trunk: fetch both heads into
+ * an in-memory repo, three-way merge, run the test gate, push the advanced
+ * trunk. Trunk only moves on a clean, gate-green merge — the confluence doing
+ * its work, one task at a time.
  */
 export async function mergeTaskIntoTrunk(opts: {
 	trunk: RemoteRepo;

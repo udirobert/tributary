@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <title>Tributary — many tributaries converging into one verified trunk</title>
+
+  <defs>
+    <radialGradient id="glowBlue" cx="16%" cy="4%" r="72%">
+      <stop offset="0" stop-color="#1a2360"/>
+      <stop offset="1" stop-color="#0b1020" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowViolet" cx="98%" cy="104%" r="66%">
+      <stop offset="0" stop-color="#2a1063"/>
+      <stop offset="1" stop-color="#0b1020" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e7ecff"/>
+      <stop offset="0.52" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <!-- userSpaceOnUse: a horizontal line has a zero-height bbox, and an
+         objectBoundingBox gradient on it is not rendered at all. -->
+    <linearGradient id="streamGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="824" y2="0">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.06"/>
+      <stop offset="0.6" stop-color="#38bdf8" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="trunkGrad" gradientUnits="userSpaceOnUse" x1="824" y1="0" x2="1280" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- backdrop -->
+  <rect width="1280" height="360" fill="#0b1020"/>
+  <rect width="1280" height="360" fill="url(#glowBlue)"/>
+  <rect width="1280" height="360" fill="url(#glowViolet)"/>
+
+  <!-- wordmark -->
+  <text x="64" y="106" font-size="58" font-weight="700" letter-spacing="-1.5" fill="url(#titleGrad)">Tributary</text>
+  <text x="66" y="146" font-size="20" fill="#c7d0f0">Many tributaries · one trunk</text>
+  <text x="66" y="174" font-size="13.5" fill="#95a1cf">prevent at the watershed · integrate at the confluence · negotiate at the rapids</text>
+
+  <!-- converging streams -->
+  <g fill="none" stroke="url(#streamGrad)" stroke-width="2.5" stroke-linecap="round">
+    <path d="M-20,214 C 420,214 640,272 824,272"/>
+    <path d="M-20,243 C 420,243 660,272 824,272"/>
+    <path d="M-20,272 L824,272"/>
+    <path d="M-20,301 C 420,301 660,272 824,272"/>
+    <path d="M-20,330 C 420,330 640,272 824,272"/>
+  </g>
+
+  <!-- trunk: a plain halo under a solid core (no filter — keeps it robust) -->
+  <path d="M824,272 L1300,272" fill="none" stroke="url(#trunkGrad)" stroke-width="18" stroke-linecap="round" opacity="0.16"/>
+  <path d="M824,272 L1300,272" fill="none" stroke="url(#trunkGrad)" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- confluence node -->
+  <circle cx="824" cy="272" r="13" fill="#a78bfa" opacity="0.28"/>
+  <circle cx="824" cy="272" r="7" fill="#0b1020" stroke="#a78bfa" stroke-width="3"/>
+
+  <!-- landed commits on the trunk -->
+  <g fill="#22c55e">
+    <circle cx="930" cy="272" r="4.5"/>
+    <circle cx="1050" cy="272" r="4.5"/>
+    <circle cx="1170" cy="272" r="4.5"/>
+  </g>
+
+  <!-- labels -->
+  <text x="64" y="347" font-size="12" fill="#6b7699">each agent's change is a tributary</text>
+  <text x="824" y="304" font-size="11.5" letter-spacing="1.8" fill="#95a1cf" text-anchor="middle">CONFLUENCE</text>
+  <text x="1080" y="250" font-size="11.5" letter-spacing="1.8" fill="#95a1cf" text-anchor="middle">VERIFIED TRUNK</text>
+</svg>
