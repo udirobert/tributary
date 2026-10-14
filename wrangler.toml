@@ -5,6 +5,13 @@ compatibility_date = "2026-10-03"
 [[artifacts]]
 binding = "ARTIFACTS"
 namespace = "default"
+# Artifacts has no local simulator (wrangler source explicitly marks it
+# "DO-NOT-USE-this-resource-will-never-have-a-local-simulator"), so the
+# binding always connects to the remote Artifacts namespace. This means
+# `npm run dev` requires a Cloudflare account on a Workers Paid plan
+# (error 10403 is returned on the free tier) and a real Artifacts
+# namespace on that account. See DECISIONS.md.
+remote = true
 
 [[durable_objects.bindings]]
 name = "CLAIM_REGISTRY"

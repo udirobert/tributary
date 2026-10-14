@@ -54,4 +54,36 @@ Reviewed four sources shared in the brief (metadata verified via GitHub API; pag
 
 ## Open Questions
 
-- Does `wrangler dev` (local) emulate Artifacts bindings, or do import/fork/token flows require `wrangler deploy` to a real namespace? Blocks `npm run simulate` locally. (Doc fetch blocked by quota on Oct 3; verify next session.)
+- Does `wrangler dev` (local) emulate Artifacts bindings, or do import/fork/token flows require `wrangler dev` to a real namespace? **Resolved Oct 14, 2026.**
+
+  **Answer: Artifacts has no local simulator.** `wrangler` source
+  (`node_modules/wrangler/wrangler-dist/cli.js:26742`) explicitly marks
+  Artifacts as
+  `"DO-NOT-USE-this-resource-will-never-have-a-local-simulator"`. The
+  `[[artifacts]]` binding in `wrangler.toml` accepts a `remote` boolean
+  but `remote = false` is not a working local mode — the binding still
+  routes to the remote namespace. Running `wrangler dev` without a paid
+  Workers plan returns error 10403 from the Artifacts proxy:
+
+  > In order to use Artifacts, you must switch to a paid plan at
+  > https://dash.cloudflare.com/.../workers/plans.
+
+  **Implication for the spike:**
+
+  - `npm run simulate` and `npm run dev` require:
+    1. `npx wrangler login` against a Workers Paid account.
+    2. A real Artifacts namespace on that account (we use the
+       `default` namespace; a custom one would also work).
+  - The merge engine (`src/merge.ts`) and the test gate can be
+    exercised **without** any of this via `npm run test:merge`, which
+    builds trunk + task histories in `MemoryFS` and runs the four-case
+    harness. That's the path to use in the demo if the paid account
+    setup fails on camera.
+  - Dashboard renders and live-counts the ClaimRegistry DO **without**
+    Artifacts (just `GET /registry/status`) — the DO is local-simulated
+    by wrangler. Useful for the dashboard beat even before any
+    Artifacts-bound route is called.
+
+  No code change was made to remove this requirement for the spike; a
+  full local simulation would mean swapping `env.ARTIFACTS.*` for an
+  in-memory shim, which is a substantial sidequest and was deferred.
