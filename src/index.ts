@@ -4,11 +4,32 @@ import { MemoryFS } from "./memory-fs";
 import { DurableObject } from "cloudflare:workers";
 
 import { resolveConflict } from "./resolver";
+import { mergeTaskIntoTrunk } from "./merge";
+import { DASHBOARD_HTML } from "./dashboard";
 
 export interface Env {
 	ARTIFACTS: any;
 	CLAIM_REGISTRY: DurableObjectNamespace<ClaimRegistry>;
 	MERGE_QUEUE: Queue;
+}
+
+const TRUNK_NAME = "ejs-trunk";
+
+interface ArtifactRepoHandle {
+	remote?: string;
+	info(): Promise<{ remote?: string }>;
+	createToken(
+		scope: string,
+		ttlSeconds: number,
+	): Promise<{ plaintext: string }>;
+}
+
+async function repoCreds(env: Env, name: string) {
+	using repo = (await env.ARTIFACTS.get(name)) as ArtifactRepoHandle;
+	const remote = repo.remote ?? (await repo.info()).remote;
+	if (!remote) throw new Error(`No git remote for Artifacts repo ${name}`);
+	const token = await repo.createToken("write", 3600);
+	return { remote, token: token.plaintext };
 }
 
 interface Claim {
@@ -156,7 +177,7 @@ export default {
 		if (request.method === "POST" && url.pathname === "/import") {
 			const imported = await env.ARTIFACTS.import({
 				source: { url: "https://github.com/mde/ejs.git", branch: "main" },
-				target: { name: "ejs-trunk" },
+				target: { name: TRUNK_NAME },
 			});
 			return Response.json({
 				name: imported.name,
@@ -168,7 +189,7 @@ export default {
 		if (request.method === "POST" && url.pathname === "/fork") {
 			const body = (await request.json().catch(() => ({}))) as any;
 			const taskName = body.name || "ejs-task-1";
-			using repo = await env.ARTIFACTS.get("ejs-trunk");
+			using repo = await env.ARTIFACTS.get(TRUNK_NAME);
 			const forked = await repo.fork(taskName, {
 				description: `Fork for ${taskName}`,
 				defaultBranchOnly: true,
@@ -184,7 +205,7 @@ export default {
 
 		if (request.method === "POST" && url.pathname === "/commit") {
 			const body = (await request.json().catch(() => ({}))) as any;
-			const { repoName, remote, token } = body;
+			const { repoName, remote, token, agentId, files, changedFiles } = body;
 			const tokenSecret = token.split("?expires=")[0];
 			const dir = "/workspace";
 			const fs = new MemoryFS();
@@ -218,52 +239,41 @@ export default {
 				onAuth: () => ({ username: "x", password: tokenSecret }),
 			});
 
-			// Trigger merge queue
+			// Trigger merge queue. We forward the agent's declared footprint and
+			// the files it actually changed so the queue consumer can detect
+			// footprint violations (i.e. an agent that touched a file it didn't
+			// declare) and route those to the resolver as residual conflicts.
 			await env.MERGE_QUEUE.send({
-				agentId: "agent-1",
+				agentId: agentId ?? "agent-1",
 				taskRepo: repoName,
 				token: token,
+				files: Array.isArray(files) ? files : [],
+				changedFiles: Array.isArray(changedFiles)
+					? changedFiles
+					: ["spike.txt"],
 			});
 
 			return Response.json({ commit, push, queued: true });
 		}
 
 		if (request.method === "GET" && url.pathname === "/") {
-			const id = env.CLAIM_REGISTRY.idFromName("global");
-			const stub = env.CLAIM_REGISTRY.get(id);
-			const status = await stub.getStatus();
-			const html = `
-				<!DOCTYPE html>
-				<html>
-				<head>
-					<title>Tributary Dashboard</title>
-					<style>
-						body { font-family: system-ui; padding: 2rem; background: #fafafa; }
-						.card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem; }
-						.green { color: #059669; font-weight: bold; }
-						.red { color: #dc2626; font-weight: bold; }
-					</style>
-				</head>
-				<body>
-					<h1>🌊 Tributary Live Dashboard</h1>
-					<div class="card">
-						<h2>Trunk Status: <span class="${status.stats.trunkStatus}">${status.stats.trunkStatus.toUpperCase()}</span></h2>
-						<p>Total Merges: ${status.stats.totalMerges}</p>
-					</div>
-					<div class="card">
-						<h2>Coordination Layer</h2>
-						<p>Active Claims: ${status.activeClaims.length}</p>
-						<p>Waitlist (Queue Depth): ${status.waitlist.length}</p>
-					</div>
-					<div class="card">
-						<h2>Conflict Metrics</h2>
-						<p>Conflicts Prevented (Claim overlapping): ${status.stats.conflictsPrevented}</p>
-						<p>Residual Conflicts (Reached Resolver): ${status.stats.resolverInvocations}</p>
-					</div>
-				</body>
-				</html>
-			`;
-			return new Response(html, { headers: { "Content-Type": "text/html" } });
+			return new Response(DASHBOARD_HTML, {
+				headers: { "Content-Type": "text/html; charset=utf-8" },
+			});
+		}
+
+		// Demo hook: simulate a footprint-violating task end-to-end without
+		// requiring a real second Artifacts repo. We skip the queue and hand
+		// the violation straight to the resolver so the dashboard's
+		// "resolver runs" counter ticks up on demand.
+		if (request.method === "POST" && url.pathname === "/demo/conflict") {
+			const id2 = env.CLAIM_REGISTRY.idFromName("global");
+			const stub2 = env.CLAIM_REGISTRY.get(id2);
+			await stub2.recordMergeResult(false);
+			await resolveConflict("agent-misbehave", "demo-fault-repo", [
+				"src/auth.js",
+			]);
+			return Response.json({ routed: "resolver", kind: "footprint-violation" });
 		}
 
 		return Response.json(
@@ -282,22 +292,88 @@ export default {
 				`[MergeQueue] Processing task from ${task.agentId} (repo: ${task.taskRepo})`,
 			);
 
-			// Simulated Sandbox Merge & Test execution
-			const success = Math.random() > 0.1;
+			// Footprint-violation pre-filter.
+			//
+			// The ClaimRegistry already prevents two tasks from holding overlapping
+			// claims at the SAME time, so most merges from the queue are clean.
+			// The only residual conflicts come from one of three places:
+			//   1. A claim was released/expired and another task picked up the file.
+			//   2. The same file was touched before either agent claimed it (TOCTOU).
+			//   3. The agent pushed a file outside its declared footprint.
+			//
+			// Case 3 is rejected before we spend a merge on it: work outside the
+			// declared footprint routes straight to the resolver. Cases 1–2 are
+			// left for the real three-way merge below to surface as actual git
+			// conflicts.
+			const declared = Array.isArray(task.files) ? task.files : [];
+			const changed = Array.isArray(task.changedFiles)
+				? task.changedFiles
+				: task.changedFiles
+					? [task.changedFiles]
+					: ["spike.txt"];
+			const outOfFootprint = changed.filter(
+				(f: string) =>
+					!declared.some((d: string) => d === f || d.endsWith(`/${f}`)),
+			);
 
-			if (success) {
+			if (outOfFootprint.length > 0) {
 				console.log(
-					`[MergeQueue] ✅ Merged and tests passed for ${task.agentId}`,
+					`[MergeQueue] ❌ Footprint violation from ${task.agentId}: ` +
+						`changed ${outOfFootprint.join(", ")} outside declared ` +
+						`footprint ${declared.join(", ") || "(none)"}. Routing to resolver.`,
+				);
+				await stub.recordMergeResult(false);
+				await resolveConflict(task.agentId, task.taskRepo, outOfFootprint);
+				continue;
+			}
+
+			// Real speculative merge: fetch trunk + task heads, three-way merge,
+			// test gate, push the advanced trunk only when green.
+			let outcome;
+			try {
+				const [trunk, taskCreds] = await Promise.all([
+					repoCreds(env, TRUNK_NAME),
+					repoCreds(env, task.taskRepo),
+				]);
+				outcome = await mergeTaskIntoTrunk({
+					trunk,
+					task: {
+						remote: taskCreds.remote,
+						token: task.token ?? taskCreds.token,
+					},
+				});
+			} catch (err) {
+				console.error(
+					`[MergeQueue] Merge attempt errored for ${task.taskRepo}:`,
+					err,
+				);
+				outcome = {
+					status: "failed" as const,
+					reason: (err as Error).message,
+				};
+			}
+
+			if (outcome.status === "merged" || outcome.status === "already-merged") {
+				console.log(
+					`[MergeQueue] ✅ Landed ${task.taskRepo} on trunk ` +
+						`(${outcome.status === "merged" ? outcome.commit : "no-op"})`,
 				);
 				await stub.recordMergeResult(true);
 			} else {
+				const reason =
+					outcome.status === "conflict"
+						? `conflict in ${outcome.conflictedFiles.join(", ")}`
+						: outcome.reason;
 				console.log(
-					`[MergeQueue] ❌ Tests failed or conflict for ${task.agentId}. Sending to resolver.`,
+					`[MergeQueue] ❌ ${task.agentId} did not land: ${reason}. ` +
+						`Routing to resolver.`,
 				);
 				await stub.recordMergeResult(false);
-				await resolveConflict(task.agentId, task.taskRepo, [
-					"simulated/file.ts",
-				]);
+				await resolveConflict(
+					task.agentId,
+					task.taskRepo,
+					outcome.status === "conflict" ? outcome.conflictedFiles : [],
+				);
 			}
 		}
 	},

@@ -73,6 +73,9 @@ async function runAgent(agentId: string) {
 			repoName: forkRes.name,
 			remote: forkRes.remote,
 			token: forkRes.token,
+			agentId,
+			files: footprint,
+			changedFiles: ["spike.txt"], // demo: only touch a file inside the footprint
 		}),
 	}).then((res) => res.json());
 
