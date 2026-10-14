@@ -21,22 +21,25 @@ three stages:
 
 ## Architecture
 
-| Piece           | Cloudflare primitive                  | Role                                                                       |
-| --------------- | ------------------------------------- | -------------------------------------------------------------------------- |
-| `ClaimRegistry` | Durable Object (`src/index.ts`)       | File-level footprint locks, waitlist, TTLs, live stats                     |
-| Task repos      | Artifacts (`env.ARTIFACTS`)           | Import trunk, fork per task, scoped `write` tokens with TTL                |
-| `MERGE_QUEUE`   | Workers Queue (`max_concurrency = 1`) | Serializes speculative merges onto trunk                                   |
-| Resolver        | `src/resolver.ts`                     | Last-resort LLM mediation for residual conflicts                           |
-| Dashboard       | Worker `GET /`                        | Trunk status, active claims, queue depth, conflicts prevented vs. resolved |
+| Piece           | Cloudflare primitive                  | Role                                                                        |
+| --------------- | ------------------------------------- | --------------------------------------------------------------------------- |
+| `ClaimRegistry` | Durable Object (`src/index.ts`)       | File-level footprint locks, waitlist, TTLs, live stats                      |
+| Task repos      | Artifacts (`env.ARTIFACTS`)           | Import trunk, fork per task, scoped `write` tokens with TTL                 |
+| `MERGE_QUEUE`   | Workers Queue (`max_concurrency = 1`) | Serializes speculative merges onto trunk                                    |
+| Merge engine    | `src/merge.ts`                        | Three-way `isomorphic-git` merge + test gate; trunk only moves when green   |
+| Resolver        | `src/resolver.ts`                     | Last-resort LLM mediation for residual conflicts (GitLab-Duo-style scope)   |
+| Dashboard       | Worker `GET /` (`src/dashboard.ts`)   | Auto-refreshing console: trunk state, counters, claim table, waitlist, feed |
 
 ### HTTP surface (spike)
 
-- `GET /` — live dashboard
+- `GET /` — live dashboard (auto-refreshes every 1.5s)
 - `POST /import` — import upstream repo into Artifacts as trunk (`ejs-trunk`)
 - `POST /fork` — fork trunk into a task repo, mint a 1h write token
 - `POST /commit` — commit + push to a task repo via `isomorphic-git` on an
   in-memory FS, then enqueue a merge
 - `POST /registry/claim` · `POST /registry/release` · `GET /registry/status`
+- `POST /demo/conflict` — triggers a footprint-violation → resolver beat
+  for the demo (no second Artifacts repo required)
 
 ## Run it
 
@@ -48,24 +51,38 @@ Artifacts bindings require a real account; whether they emulate under
 npm install        # also wires lint-staged/husky hooks + the TS6 lint shim
 npm run dev        # terminal 1: wrangler dev at http://127.0.0.1:8787
 npm run simulate   # terminal 2: spawn 4 concurrent agents at the endpoints
+npm run test:merge # optional: runs the merge-engine harness locally (4 cases)
 open http://127.0.0.1:8787/   # live dashboard
 ```
 
 The simulation shows the claim registry granting non-overlapping agents
-immediately, queueing overlapping ones, and the merge queue consuming tasks one
-at a time.
+immediately, queueing overlapping ones, and the merge queue consuming tasks
+one at a time. The merge engine runs a real three-way `isomorphic-git`
+merge per task and only pushes trunk when both the merge and the test
+gate succeed.
 
 ## Current status
 
-Step-0 spike + milestone scaffolding (milestones 1–6 in skeleton form):
+What works end-to-end:
 
 - ✅ Import / fork / tokenized push proven against the Artifacts binding API
 - ✅ Claim registry DO with overlap detection, waitlist, TTL, metrics
 - ✅ Queue-driven merge pipeline (`max_concurrency = 1`)
-- ⚠️ Merge/test step inside the queue consumer is **simulated** (random pass,
-  10% fail) — the real speculative rebase + Sandbox test run is the next build
-- ⚠️ Resolver is a stub (logs + fake delay), wired to the failure path
-- ⚠️ Dashboard renders stats from the DO but does not auto-refresh yet
+- ✅ **Real** three-way merge engine (`src/merge.ts`) with four outcomes
+  (merged / already-merged / conflict / failed) and a real test gate
+- ✅ Queue consumer pre-filters footprint violations before spending a merge
+- ✅ Dashboard auto-refreshes every 1.5s, shows trunk state, claim table,
+  waitlist, live event feed
+- ✅ Merge engine unit-tested via `npm run test:merge` (clean merge, real
+  conflict, no-op re-merge, gate failure — all pass on an in-memory repo)
+
+What's still simulated:
+
+- ⚠️ Resolver is a stub (logs + 2s delay) — the shape is right (scoped
+  privileges on a separate write token) but the LLM call is the next
+  build. Triggerable on demand via `POST /demo/conflict`.
+- ⚠️ `wrangler dev` local-mode behavior of the Artifacts binding is being
+  verified — see DECISIONS.md.
 
 Known assumptions and doc findings are logged in [DECISIONS.md](./DECISIONS.md).
 
@@ -91,4 +108,4 @@ does not support TypeScript 7 yet, so linting uses a side-by-side TS 6 shim
 
 ## License
 
-ISC
+MIT
