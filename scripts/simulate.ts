@@ -1,121 +1,223 @@
+/**
+ * Tributary simulation harness.
+ *
+ * Drives N concurrent agents against a running `npm run dev` Worker:
+ *
+ *   1. claim   — declare a file footprint; overlapping claims are queued
+ *   2. fork    — fork trunk into a task repo, mint a scoped write token
+ *   3. commit  — write the declared files and enqueue a speculative merge
+ *   4. release — drop the claim
+ *
+ * The footprints below deliberately overlap (Alpha and Bravo both touch
+ * `src/index.js`) so the run always exercises stage 1 (a claim is refused and
+ * queued) and produces at least one same-file change for the merge queue to
+ * reconcile. Every agent edits a file *inside* its declared footprint, so work
+ * reaches the real merge engine instead of being filtered as a violation.
+ *
+ * Exits non-zero if the pipeline did not actually run, so `npm run simulate`
+ * is a real check rather than a log dump.
+ */
+
 const API_BASE = "http://127.0.0.1:8787";
 
-const FILES = [
-	"src/index.js",
-	"src/auth.js",
-	"src/db.js",
-	"package.json",
-	"README.md",
+interface Task {
+	agentId: string;
+	footprint: string[];
+	edit: { path: string; content: string };
+}
+
+const RENDER = "exports.render = (name) => `<h1>${name}</h1>`;\n";
+
+// Alpha and Bravo both write the same line of src/index.js — the same-file
+// conflict the resolver exists for. Charlie and Delta are disjoint.
+const TASKS: Task[] = [
+	{
+		agentId: "Agent-Alpha",
+		footprint: ["src/index.js", "src/auth.js"],
+		edit: {
+			path: "src/index.js",
+			content: `${RENDER}exports.version = '3.1.10-alpha';\n`,
+		},
+	},
+	{
+		agentId: "Agent-Bravo",
+		footprint: ["src/index.js"],
+		edit: {
+			path: "src/index.js",
+			content: `${RENDER}exports.version = '3.1.10-bravo';\n`,
+		},
+	},
+	{
+		agentId: "Agent-Charlie",
+		footprint: ["src/db.js"],
+		edit: {
+			path: "src/db.js",
+			content:
+				"exports.connect = () => ({ query: async () => [] });\nexports.poolSize = 4;\n",
+		},
+	},
+	{
+		agentId: "Agent-Delta",
+		footprint: ["README.md", "package.json"],
+		edit: {
+			path: "README.md",
+			content: "# ejs\n\nDocs updated by Agent-Delta.\n",
+		},
+	},
 ];
 
-function randomChoice(arr: any[]) {
-	return arr[Math.floor(Math.random() * arr.length)];
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function api(path: string, init?: RequestInit): Promise<any> {
+	const res = await fetch(`${API_BASE}${path}`, init);
+	const text = await res.text();
+	if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}: ${text}`);
+	try {
+		return JSON.parse(text);
+	} catch {
+		return text;
+	}
 }
 
-async function delay(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const post = (path: string, body: unknown) =>
+	api(path, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
 
-async function runAgent(agentId: string) {
-	console.log(`[${agentId}] Starting task...`);
+async function runAgent(task: Task): Promise<boolean> {
+	const { agentId, footprint, edit } = task;
+	console.log(`[${agentId}] starting; footprint: ${footprint.join(", ")}`);
 
-	// 1. Pick a random footprint of 1-2 files
-	const footprint = [randomChoice(FILES)];
-	if (Math.random() > 0.5) footprint.push(randomChoice(FILES));
-
-	console.log(`[${agentId}] Requesting claim for: ${footprint.join(", ")}`);
+	// 1. Claim (retry while queued behind an overlapping claim).
 	let claimed = false;
-
-	// 2. Request claim (retry if queued to simulate wait)
-	for (let i = 0; i < 5; i++) {
-		const claimRes = (await fetch(`${API_BASE}/registry/claim`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ agentId, files: footprint, ttlSeconds: 30 }),
-		}).then((res) => res.json())) as any;
-
-		if (claimRes.status === "granted") {
-			console.log(`[${agentId}] 🟢 Claim granted!`);
-			claimed = true;
-			break;
-		} else {
-			console.log(
-				`[${agentId}] 🟡 Claim queued (conflict with ${claimRes.conflictingAgent}). Retrying in 2s...`,
-			);
-			await delay(2000);
-		}
-	}
-
-	if (!claimed) {
-		console.log(`[${agentId}] 🔴 Gave up waiting for claim.`);
-		return;
-	}
-
-	// 3. Fork task repo
-	console.log(`[${agentId}] Forking repo...`);
-	const forkRes = (await fetch(`${API_BASE}/fork`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ name: `task-${agentId}` }),
-	}).then((res) => res.json())) as any;
-
-	console.log(
-		`[${agentId}] Forked to ${forkRes.remote}. Working on changes...`,
-	);
-	await delay(1500); // Simulate work
-
-	// 4. Commit and push to task repo (triggers merge queue)
-	console.log(`[${agentId}] Committing changes...`);
-	await fetch(`${API_BASE}/commit`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			repoName: forkRes.name,
-			remote: forkRes.remote,
-			token: forkRes.token,
+	for (let attempt = 1; attempt <= 15 && !claimed; attempt++) {
+		const res = await post("/registry/claim", {
 			agentId,
 			files: footprint,
-			changedFiles: ["spike.txt"], // demo: only touch a file inside the footprint
-		}),
-	}).then((res) => res.json());
+			ttlSeconds: 60,
+		});
+		if (res.status === "granted") {
+			console.log(`[${agentId}] 🟢 claim granted`);
+			claimed = true;
+		} else {
+			console.log(
+				`[${agentId}] 🟡 claim queued (held by ${res.conflictingAgent}); retry ${attempt}`,
+			);
+			await delay(1000);
+		}
+	}
+	if (!claimed) {
+		console.error(`[${agentId}] 🔴 gave up waiting for a claim`);
+		return false;
+	}
 
-	console.log(`[${agentId}] Changes committed. Merge queued!`);
+	try {
+		// 2. Fork trunk into a task repo.
+		const fork = await post("/fork", { name: `task-${agentId}` });
+		console.log(`[${agentId}] forked -> ${fork.name} (${fork.remote})`);
 
-	// 5. Release claim
-	await fetch(`${API_BASE}/registry/release`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ agentId }),
-	});
-	console.log(`[${agentId}] 🏁 Released claim. Task complete.`);
+		await delay(300); // simulate thinking/work
+
+		// 3. Commit the edit and enqueue the merge.
+		const commit = await post("/commit", {
+			repoName: fork.name,
+			remote: fork.remote,
+			token: fork.token,
+			agentId,
+			files: footprint,
+			changedFiles: [edit.path],
+			edits: { [edit.path]: edit.content },
+		});
+		console.log(
+			`[${agentId}] committed ${edit.path} (${commit.commit?.slice(0, 8)}), merge queued`,
+		);
+		return true;
+	} finally {
+		// 4. Always release the claim, even if a later step threw.
+		await post("/registry/release", { agentId }).catch(() => undefined);
+		console.log(`[${agentId}] 🏁 released claim`);
+	}
+}
+
+/** Wait for the serial merge queue to drain (each task increments totalMerges). */
+async function waitForMerges(expected: number, timeoutMs = 30_000) {
+	const deadline = Date.now() + timeoutMs;
+	let status = await api("/registry/status");
+	while (status.stats.totalMerges < expected && Date.now() < deadline) {
+		await delay(500);
+		status = await api("/registry/status");
+	}
+	return status;
 }
 
 async function main() {
-	console.log("🌊 Tributary Simulation Harness 🌊\n");
+	console.log("🌊 Tributary simulation harness 🌊\n");
 
 	try {
 		await fetch(API_BASE);
 	} catch {
 		console.error(
-			"Worker is not running. Please start it with 'npm run dev' first.",
+			`Worker is not running at ${API_BASE}. Start it with 'npm run dev' first.`,
 		);
 		process.exit(1);
 	}
 
-	console.log("Initializing trunk repo...");
-	await fetch(`${API_BASE}/import`, { method: "POST" });
-	console.log("Trunk initialized.\n");
-
-	const agents = ["Agent-Alpha", "Agent-Bravo", "Agent-Charlie", "Agent-Delta"];
-	console.log(`Spawning ${agents.length} agents...\n`);
-
-	await Promise.all(agents.map(runAgent));
-
-	console.log("\nSimulation finished. Checking registry status...");
-	const status = await fetch(`${API_BASE}/registry/status`).then((res) =>
-		res.json(),
+	console.log("initializing trunk…");
+	const imported = await post("/import", {});
+	console.log(
+		`trunk ready via ${imported.provider} provider (seed ${String(imported.seed).slice(0, 8)})\n`,
 	);
-	console.log(status);
+
+	console.log(`spawning ${TASKS.length} concurrent agents…\n`);
+	const results = await Promise.all(TASKS.map(runAgent));
+	const granted = results.filter(Boolean).length;
+
+	console.log("\nwaiting for the merge queue to drain…");
+	const status = await waitForMerges(TASKS.length);
+
+	const { totalMerges, conflictsPrevented, resolverInvocations, trunkStatus } =
+		status.stats;
+	console.log("\nfinal registry status:");
+	console.log(JSON.stringify(status, null, 2));
+
+	const failures: string[] = [];
+	if (imported.provider !== "local" && imported.provider !== "artifacts") {
+		failures.push("trunk import did not report a provider");
+	}
+	if (granted !== TASKS.length) {
+		failures.push(`${granted}/${TASKS.length} agents obtained a claim`);
+	}
+	if (totalMerges < TASKS.length) {
+		failures.push(`merge queue processed ${totalMerges}/${TASKS.length} tasks`);
+	}
+	if (conflictsPrevented < 1) {
+		failures.push("no overlapping claim was prevented (stage 1 not exercised)");
+	}
+
+	console.log("\nchecks:");
+	console.log(
+		`  ${granted === TASKS.length ? "✅" : "❌"} claims granted: ${granted}/${TASKS.length}`,
+	);
+	console.log(
+		`  ${conflictsPrevented >= 1 ? "✅" : "❌"} conflicts prevented: ${conflictsPrevented}`,
+	);
+	console.log(
+		`  ${totalMerges >= TASKS.length ? "✅" : "❌"} merges processed: ${totalMerges}/${TASKS.length}`,
+	);
+	console.log(
+		`  ℹ️  resolver runs: ${resolverInvocations} (trunk ${trunkStatus})`,
+	);
+
+	if (failures.length > 0) {
+		console.error(`\n❌ simulation failed:\n  - ${failures.join("\n  - ")}`);
+		process.exit(1);
+	}
+	console.log("\n✅ simulation complete");
 }
 
-main().catch(console.error);
+main().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});

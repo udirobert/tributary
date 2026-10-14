@@ -157,7 +157,13 @@ export class MemoryFS {
 		this.requireDir(parent).children.add(this.basename(target));
 	}
 
-	async writeFile(path: string, data: string | Uint8Array | ArrayBuffer) {
+	async writeFile(
+		path: string,
+		data: string | Uint8Array | ArrayBuffer,
+		// Accept and ignore node's optional third argument (`encoding`/options)
+		// so call sites can use the familiar `fs.promises.writeFile(p, d, "utf8")`.
+		_options?: string | { encoding?: string },
+	) {
 		const target = this.normalize(path);
 		await this.mkdir(this.parent(target), { recursive: true });
 

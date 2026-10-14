@@ -6,14 +6,38 @@ import { DurableObject } from "cloudflare:workers";
 import { resolveConflict } from "./resolver";
 import { mergeTaskIntoTrunk } from "./merge";
 import { DASHBOARD_HTML } from "./dashboard";
+import { LocalArtifacts } from "./artifacts-local";
+
+export { LocalArtifacts };
 
 export interface Env {
-	ARTIFACTS: any;
+	// Real Cloudflare Artifacts binding: remote-only, requires a Workers paid
+	// plan, and has no local simulator, so it is only declared by configs that
+	// target a paid account. Absent in the default (offline) config, where
+	// LOCAL_ARTIFACTS serves the same surface instead. See src/artifacts-local.ts.
+	ARTIFACTS?: any;
+	LOCAL_ARTIFACTS?: DurableObjectNamespace<LocalArtifacts>;
 	CLAIM_REGISTRY: DurableObjectNamespace<ClaimRegistry>;
 	MERGE_QUEUE: Queue;
+	/** Workers AI binding — present when [ai] is configured in wrangler.toml. */
+	AI?: import("./resolver").AiBinding;
 }
 
 const TRUNK_NAME = "ejs-trunk";
+const TRUNK_SOURCE = {
+	url: "https://github.com/mde/ejs.git",
+	branch: "main",
+};
+
+/** The offline Artifacts provider, used when the real binding is not bound. */
+function localArtifacts(env: Env) {
+	if (!env.LOCAL_ARTIFACTS) {
+		throw new Error(
+			"No Artifacts provider: bind LOCAL_ARTIFACTS or add the [[artifacts]] binding.",
+		);
+	}
+	return env.LOCAL_ARTIFACTS.get(env.LOCAL_ARTIFACTS.idFromName("default"));
+}
 
 interface ArtifactRepoHandle {
 	remote?: string;
@@ -175,85 +199,136 @@ export default {
 		}
 
 		if (request.method === "POST" && url.pathname === "/import") {
-			const imported = await env.ARTIFACTS.import({
-				source: { url: "https://github.com/mde/ejs.git", branch: "main" },
-				target: { name: TRUNK_NAME },
+			if (env.ARTIFACTS) {
+				const imported = await env.ARTIFACTS.import({
+					source: TRUNK_SOURCE,
+					target: { name: TRUNK_NAME },
+				});
+				return Response.json({
+					name: imported.name,
+					remote: imported.remote,
+					token: imported.token,
+					provider: "artifacts",
+				});
+			}
+
+			const imported = await localArtifacts(env).importRepo({
+				url: TRUNK_SOURCE.url,
+				name: TRUNK_NAME,
 			});
-			return Response.json({
-				name: imported.name,
-				remote: imported.remote,
-				token: imported.token,
-			});
+			return Response.json({ ...imported, provider: "local" });
 		}
 
 		if (request.method === "POST" && url.pathname === "/fork") {
 			const body = (await request.json().catch(() => ({}))) as any;
 			const taskName = body.name || "ejs-task-1";
-			using repo = await env.ARTIFACTS.get(TRUNK_NAME);
-			const forked = await repo.fork(taskName, {
-				description: `Fork for ${taskName}`,
-				defaultBranchOnly: true,
+
+			if (env.ARTIFACTS) {
+				using repo = await env.ARTIFACTS.get(TRUNK_NAME);
+				const forked = await repo.fork(taskName, {
+					description: `Fork for ${taskName}`,
+					defaultBranchOnly: true,
+				});
+				using forkRepo = await env.ARTIFACTS.get(taskName);
+				const token = await forkRepo.createToken("write", 3600);
+				return Response.json({
+					name: forked.name,
+					remote: forked.remote,
+					token: token.plaintext,
+					provider: "artifacts",
+				});
+			}
+
+			const forked = await localArtifacts(env).forkRepo({
+				from: TRUNK_NAME,
+				to: taskName,
 			});
-			using forkRepo = await env.ARTIFACTS.get(taskName);
-			const token = await forkRepo.createToken("write", 3600);
-			return Response.json({
-				name: forked.name,
-				remote: forked.remote,
-				token: token.plaintext,
-			});
+			return Response.json({ ...forked, provider: "local" });
 		}
 
 		if (request.method === "POST" && url.pathname === "/commit") {
 			const body = (await request.json().catch(() => ({}))) as any;
-			const { repoName, remote, token, agentId, files, changedFiles } = body;
-			const tokenSecret = token.split("?expires=")[0];
-			const dir = "/workspace";
-			const fs = new MemoryFS();
-			await git.init({ fs, dir, defaultBranch: "main" });
-			await git.addRemote({ fs, dir, remote: "origin", url: remote });
-			await git.fetch({
-				fs,
-				http,
-				dir,
-				ref: "main",
-				depth: 1,
-				onAuth: () => ({ username: "x", password: tokenSecret }),
-			});
-			await fs.promises.writeFile(
-				`${dir}/spike.txt`,
-				`Hello from spike at ${Date.now()}`,
-			);
-			await git.add({ fs, dir, filepath: "spike.txt" });
-			const commit = await git.commit({
-				fs,
-				dir,
-				message: "Spike commit",
-				author: { name: "Agent", email: "agent@tributary.dev" },
-			});
-			const push = await git.push({
-				fs,
-				http,
-				dir,
-				url: remote,
-				ref: "main",
-				onAuth: () => ({ username: "x", password: tokenSecret }),
-			});
+			const { repoName, remote, token, agentId, files, changedFiles, edits } =
+				body;
+
+			// The files the agent actually wrote: `edits` maps path -> content.
+			// When omitted we keep the spike's original single-file behaviour.
+			const changes: Record<string, string> =
+				edits && typeof edits === "object" && Object.keys(edits).length > 0
+					? edits
+					: { "spike.txt": `Hello from spike at ${Date.now()}` };
+			const message = `Agent commit from ${agentId ?? "agent-1"}`;
+
+			let commit: string | undefined;
+			if (env.ARTIFACTS) {
+				const tokenSecret = token.split("?expires=")[0];
+				const dir = "/workspace";
+				const fs = new MemoryFS();
+				await git.init({ fs, dir, defaultBranch: "main" });
+				await git.addRemote({ fs, dir, remote: "origin", url: remote });
+				await git.fetch({
+					fs,
+					http,
+					dir,
+					ref: "main",
+					depth: 1,
+					onAuth: () => ({ username: "x", password: tokenSecret }),
+				});
+				for (const [filepath, content] of Object.entries(changes)) {
+					await fs.promises.writeFile(`${dir}/${filepath}`, content);
+					await git.add({ fs, dir, filepath });
+				}
+				commit = await git.commit({
+					fs,
+					dir,
+					message,
+					author: { name: "Agent", email: "agent@tributary.dev" },
+				});
+				const push = await git.push({
+					fs,
+					http,
+					dir,
+					url: remote,
+					ref: "main",
+					onAuth: () => ({ username: "x", password: tokenSecret }),
+				});
+				if (!push.ok) {
+					return Response.json(
+						{ error: `push rejected: ${push.error ?? "unknown"}` },
+						{ status: 502 },
+					);
+				}
+			} else {
+				const result = await localArtifacts(env).commitFiles({
+					repo: repoName,
+					files: changes,
+					message,
+				});
+				commit = result.commit;
+			}
 
 			// Trigger merge queue. We forward the agent's declared footprint and
 			// the files it actually changed so the queue consumer can detect
 			// footprint violations (i.e. an agent that touched a file it didn't
 			// declare) and route those to the resolver as residual conflicts.
+			const changedList =
+				Array.isArray(changedFiles) && changedFiles.length > 0
+					? changedFiles
+					: Object.keys(changes);
 			await env.MERGE_QUEUE.send({
 				agentId: agentId ?? "agent-1",
 				taskRepo: repoName,
 				token: token,
 				files: Array.isArray(files) ? files : [],
-				changedFiles: Array.isArray(changedFiles)
-					? changedFiles
-					: ["spike.txt"],
+				changedFiles: changedList,
 			});
 
-			return Response.json({ commit, push, queued: true });
+			return Response.json({
+				commit,
+				queued: true,
+				changedFiles: changedList,
+				provider: env.ARTIFACTS ? "artifacts" : "local",
+			});
 		}
 
 		if (request.method === "GET" && url.pathname === "/") {
@@ -270,9 +345,9 @@ export default {
 			const id2 = env.CLAIM_REGISTRY.idFromName("global");
 			const stub2 = env.CLAIM_REGISTRY.get(id2);
 			await stub2.recordMergeResult(false);
-			await resolveConflict("agent-misbehave", "demo-fault-repo", [
-				"src/auth.js",
-			]);
+			await resolveConflict("agent-misbehave", "", ["src/auth.js"], {
+				ai: env.AI,
+			});
 			return Response.json({ routed: "resolver", kind: "footprint-violation" });
 		}
 
@@ -323,34 +398,55 @@ export default {
 						`footprint ${declared.join(", ") || "(none)"}. Routing to resolver.`,
 				);
 				await stub.recordMergeResult(false);
-				await resolveConflict(task.agentId, task.taskRepo, outOfFootprint);
+				await resolveConflict(task.agentId, task.taskRepo, outOfFootprint, {
+					ai: env.AI,
+				});
 				continue;
 			}
 
-			// Real speculative merge: fetch trunk + task heads, three-way merge,
-			// test gate, push the advanced trunk only when green.
+			// Real speculative merge: three-way merge onto trunk, run the test
+			// gate, advance trunk only when green. Local mode merges in-process on
+			// the shim's shared git store; the Artifacts path fetches over smart
+			// HTTP. Both share the same merge + gate primitives from ./merge.
 			let outcome;
-			try {
-				const [trunk, taskCreds] = await Promise.all([
-					repoCreds(env, TRUNK_NAME),
-					repoCreds(env, task.taskRepo),
-				]);
-				outcome = await mergeTaskIntoTrunk({
-					trunk,
-					task: {
-						remote: taskCreds.remote,
-						token: task.token ?? taskCreds.token,
-					},
-				});
-			} catch (err) {
-				console.error(
-					`[MergeQueue] Merge attempt errored for ${task.taskRepo}:`,
-					err,
-				);
-				outcome = {
-					status: "failed" as const,
-					reason: (err as Error).message,
-				};
+			if (env.ARTIFACTS) {
+				try {
+					const [trunk, taskCreds] = await Promise.all([
+						repoCreds(env, TRUNK_NAME),
+						repoCreds(env, task.taskRepo),
+					]);
+					outcome = await mergeTaskIntoTrunk({
+						trunk,
+						task: {
+							remote: taskCreds.remote,
+							token: task.token ?? taskCreds.token,
+						},
+					});
+				} catch (err) {
+					console.error(
+						`[MergeQueue] Merge attempt errored for ${task.taskRepo}:`,
+						err,
+					);
+					outcome = {
+						status: "failed" as const,
+						reason: (err as Error).message,
+					};
+				}
+			} else {
+				try {
+					outcome = await localArtifacts(env).mergeTask({
+						task: task.taskRepo,
+					});
+				} catch (err) {
+					console.error(
+						`[MergeQueue] Local merge errored for ${task.taskRepo}:`,
+						err,
+					);
+					outcome = {
+						status: "failed" as const,
+						reason: (err as Error).message,
+					};
+				}
 			}
 
 			if (outcome.status === "merged" || outcome.status === "already-merged") {
@@ -373,6 +469,7 @@ export default {
 					task.agentId,
 					task.taskRepo,
 					outcome.status === "conflict" ? outcome.conflictedFiles : [],
+					{ ai: env.AI },
 				);
 			}
 		}

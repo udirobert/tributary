@@ -2,24 +2,46 @@ name = "tributary-spike"
 main = "src/index.ts"
 compatibility_date = "2026-10-03"
 
-[[artifacts]]
-binding = "ARTIFACTS"
-namespace = "default"
-# Artifacts has no local simulator (wrangler source explicitly marks it
-# "DO-NOT-USE-this-resource-will-never-have-a-local-simulator"), so the
-# binding always connects to the remote Artifacts namespace. This means
-# `npm run dev` requires a Cloudflare account on a Workers Paid plan
-# (error 10403 is returned on the free tier) and a real Artifacts
-# namespace on that account. See DECISIONS.md.
-remote = true
+# ---------------------------------------------------------------------------
+# Default config: runs fully offline.
+#
+# Cloudflare Artifacts has no local simulator — `wrangler dev` reports the
+# binding mode as `remote` even with `remote = false` — and the binding
+# requires a Workers **paid** plan (the free tier fails the startup proxy
+# session with error 10403). A Worker that declares `[[artifacts]]` therefore
+# cannot boot without one.
+#
+# So the default config binds `LOCAL_ARTIFACTS` — an in-worker provider
+# (`src/artifacts-local.ts`) that implements the Artifacts surface the spike
+# uses, on real isomorphic-git repositories — and omits `[[artifacts]]`
+# entirely. A clean clone runs with no account, no network, no paid plan.
+# See DECISIONS.md.
+#
+# To run against real Artifacts on a paid account, add the block below and
+# drop the LOCAL_ARTIFACTS binding and its v2 migration. `src/index.ts`
+# prefers the real binding automatically, so no source changes are needed:
+#
+#   [[artifacts]]
+#   binding = "ARTIFACTS"
+#   namespace = "default"
+#   remote = true
+# ---------------------------------------------------------------------------
 
 [[durable_objects.bindings]]
 name = "CLAIM_REGISTRY"
 class_name = "ClaimRegistry"
 
+[[durable_objects.bindings]]
+name = "LOCAL_ARTIFACTS"
+class_name = "LocalArtifacts"
+
 [[migrations]]
 tag = "v1"
 new_classes = ["ClaimRegistry"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["LocalArtifacts"]
 
 [[queues.producers]]
 queue = "merge-queue"
@@ -28,3 +50,6 @@ binding = "MERGE_QUEUE"
 [[queues.consumers]]
 queue = "merge-queue"
 max_concurrency = 1
+
+[ai]
+binding = "AI"
