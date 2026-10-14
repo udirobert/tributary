@@ -123,7 +123,7 @@ engine, and spend the LLM only on the residual that reaches the rapids.
 
 ## Links to include in the form
 
-- **GitHub repo:** `<fill in>`
+- **GitHub repo:** <https://github.com/udirobert/tributary>
 - **Demo video:** `<fill in>` (under 10 min; see `docs/DEMO_SCRIPT.md`)
 - **Reference research:** `DECISIONS.md` in the repo
 - **Cloudflare primitives reference:**

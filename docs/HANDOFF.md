@@ -48,16 +48,18 @@ but defined with 2 param(s)`).
 
 ## What is left
 
-1. **Push to GitHub.** From a shell with `gh auth status` green:
+1. **Push to GitHub — done.** The repo is live at
+   <https://github.com/udirobert/tributary> on `main`. This block is the
+   one-time setup that already ran, kept for reference:
 
    ```sh
    gh repo create tributary --public --description "Coordination layer \
        for many agents on one codebase — Cloudflare 'Build the next GitHub'"
-   git remote add origin git@github.com:<user>/tributary.git
-   git push -u origin master
+   git remote add origin git@github.com:udirobert/tributary.git
+   git push -u origin main
    ```
 
-   Then fill the resulting URL into `docs/SUBMISSION.md` ("Links to include").
+   The URL is already filled into `docs/SUBMISSION.md` ("Links to include").
 
    Then set the social preview: **Settings → General → Social preview →
    Upload an image**, using `docs/social-preview.png` (1280×640, 253 KB; the
