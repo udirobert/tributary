@@ -477,8 +477,22 @@ verify → verdict for judges.
 `/etc/tributary.env` for separation: `PORT=8788`, `HOST=127.0.0.1`,
 `TRIBUTARY_SANDBOX=docker`, `TRIBUTARY_DB=/var/lib/tributary/state.db`,
 `SANDBOX_IMAGE=node:22-alpine`. `tributary.service` is active; `/config`
-reports `mode:"node/vultr"`, `sandbox:"docker"`, `ai=off` until
-`VULTR_INFERENCE_API_KEY` is added. `npm run simulate` passed on the box and
-`POST /demo/pack` produced landed / conflict→resolver→landed / rejected with
-`node verify.cjs` evidence. Public exposure is intentionally pending: ufw is
-active and 8788 is localhost-only.
+reports `mode:"node/vultr"`, `sandbox:"docker"`, and
+`ai.provider:"vultr"` (`vultr/glm-5.3-flash`). `npm run simulate` passed on
+the box and `POST /demo/pack` produced landed / conflict→resolver→landed /
+rejected with `node verify.cjs` evidence. Public exposure is intentionally
+pending: ufw is active and 8788 is localhost-only.
+
+## Containment lab verification (Nov 8, 2026)
+
+`POST /containment/lab` runs five hostile probes through the same Docker
+boundary as merge verification. The first run exposed a real gap: the gate
+container ran as root, so `/etc/shadow` was readable (`SECRET_READ_OK`,
+`contained=false`). Fixed by running gate/lab containers as uid `65534`
+(`--user 65534:65534`), setting `HOME=/tmp`, and chmodding temp mounts to
+`0755` so the unprivileged user can read the mounted workspace (commits
+`439eb01`, `0f3064c`). Re-run on `nuncio-vultr`: all five probes contained —
+fork bomb and infinite loop hit the 8s probe timeout, network egress failed
+with `EAI_AGAIN`, secret read failed with `EACCES`, and read-only write
+failed with `EROFS`. `npm run simulate` still passes with the unprivileged
+gate.

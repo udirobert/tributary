@@ -59,9 +59,10 @@ Field notes from the Nov 8 research pass:
     `server/vultr-ai.ts` when `VULTR_INFERENCE_API_KEY` is configured.
   - Docker sandbox gate (`server/sandbox.ts`) runs merged-tree checks with
     `--network none`, read-only mount, dropped capabilities,
-    `no-new-privileges`, memory/CPU/PID caps, and destruction after each run —
-    then executes the repo's verification command (`verify.cjs`/`verify.js`,
-    or `npm test`) and returns command/stdout/stderr/exit code as evidence.
+    `no-new-privileges`, unprivileged uid `65534`, memory/CPU/PID caps, and
+    destruction after each run — then executes the repo's verification
+    command (`verify.cjs`/`verify.js`, or `npm test`) and returns
+    command/stdout/stderr/exit code as evidence.
   - `isomorphic-git` performs real three-way merges; task records carry commit,
     gate evidence, and resolution provenance.
 
@@ -89,10 +90,11 @@ Field notes from the Nov 8 research pass:
 ## Required stack check
 
 - Vultr VM backend: `deploy/setup-vultr.sh` / `deploy/docker-compose.yml`.
-- Vultr Serverless Inference: `VULTR_INFERENCE_API_KEY` +
-  `VULTR_INFERENCE_MODEL` in `/etc/tributary.env`.
-- Sandbox boundary: Docker sibling containers on the same VM; never inside the
-  app process.
+- Vultr Serverless Inference: configured on `nuncio-vultr` via
+  `/etc/tributary.env`; `/config` reports `vultr/glm-5.3-flash`.
+- Sandbox boundary: Docker sibling containers on the same VM, unprivileged
+  uid `65534`; never inside the app process. `POST /containment/lab` runs five
+  hostile probes through the same boundary — all contained on Vultr.
 - Public demo URL: pending — `nuncio-vultr` runs `127.0.0.1:8788` with ufw
   active; expose via `sudo ufw allow 8788/tcp` or a Traefik/Coolify route.
 
@@ -111,7 +113,9 @@ Target: 60–90 seconds, product-style.
 5. **Rapids** — same-line conflict reaches the resolver, retry lands green.
 6. **Containment moment** — the db rewrite is rejected inside the disposable
    container when `verify.cjs` exits non-zero; trunk stays green; evidence
-   shows provider, spec, command, stdout/stderr, exit code, duration.
+   shows provider, spec, command, stdout/stderr, exit code, duration. If time
+   allows, hit `POST /containment/lab` to show fork bomb, infinite loop,
+   egress, secret read, and read-only write all contained.
 7. **Close** — "the agent that only chats is a demo; Tributary proves the
    merged result before it lands."
 
@@ -124,22 +128,23 @@ Before recording, `/config` must show `sandbox: "docker"` and
    runs the merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside the
    same sandbox and returns command/stdout/stderr/exit code as task evidence.
    Proven on `nuncio-vultr` with `sandbox: "docker"` at `127.0.0.1:8788`;
-   remaining: public URL and repeatable fixture check.
+   remaining: public URL check.
 2. **Demo repo fixture.** The trunk seed now carries `verify.cjs`; keep it
    small and intentional so "agents edit a repo that must stay green" is
    concrete for judges.
-3. **Containment lab.** Add probes through the same sandbox path: fork bomb,
-   infinite loop, network egress attempt, secret read, `rm -rf` on read-only
-   fs. Show what the kernel/Docker did.
+3. **Containment lab — done on Vultr.** `POST /containment/lab` runs five
+   probes through the same Docker boundary; on `nuncio-vultr` all five are
+   contained (fork bomb/infinite loop time out, egress `EAI_AGAIN`, secret
+   read `EACCES`, read-only write `EROFS`).
 4. **Explanation step.** After land/reject, have Vultr Inference summarize
    plan → edits → merge → sandbox output → verdict. This strengthens
    Application of Technology.
 5. **Receipts.** Gate evidence exists; consider SHA-256 hashing the evidence
    bundle (plan, edits, gate output, container spec, commit SHA) for a
    judge-verifiable receipt.
-6. **Deployed verification — done on-box.** `simulate` and `/demo/pack` ran on
-   `nuncio-vultr` with Docker gates; remaining: repeat against the public URL
-   after exposure.
+6. **Deployed verification — done on-box.** `simulate`, `/demo/pack`, and
+   `POST /containment/lab` ran on `nuncio-vultr` with Docker gates and Vultr
+   Inference; remaining: repeat against the public URL after exposure.
 
 ## Submission field copy
 

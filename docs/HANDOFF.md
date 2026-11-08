@@ -49,8 +49,9 @@ The active target is the **Vultr Agent Rush Challenge 1 — “Blast Radius
 Zero”** path documented in DECISIONS.md and `docs/VULTR_SUBMISSION.md`:
 many agents, one trunk, zero blast radius. The Node/Vultr control plane is
 implemented and verified locally and on a real Vultr VM (`nuncio-vultr`) with
-the Docker sandbox; the remaining proof is public exposure, Vultr Inference,
-and the containment lab.
+the Docker sandbox, Vultr Inference (`vultr/glm-5.3-flash`), and the
+containment lab; the remaining proof is public exposure and the recorded
+demo.
 
 The Nov 8 positioning pass found the visible field crowded with single-run
 containment products (generate code → sandbox → receipt). Tributary's
@@ -59,46 +60,41 @@ serial speculative merges, sandbox-verified trunk landing, and resolver as
 last resort. The Pattern A execution gap is closed and proven on Vultr:
 the sandbox gate runs the merged tree's `verify.cjs`/`verify.js` (or `npm
 test`) inside the same throwaway container and returns executed stdout/
-stderr/exit code as task evidence. What remains for Challenge 1 is public
-exposure, `VULTR_INFERENCE_API_KEY`, and a visible containment probe.
+stderr/exit code as task evidence. The containment lab is also live:
+`POST /containment/lab` runs five hostile probes through the same Docker
+boundary and all five are contained on `nuncio-vultr`. What remains for
+Challenge 1 is public exposure and a repeatable recorded demo.
 
 ## What is left
 
-1. **Add a containment lab.** Run hostile probes through the same sandbox
-   path: fork bomb, infinite loop, network egress attempt, secret read,
-   `rm -rf` on the read-only fs. The video needs one obvious containment
-   moment with kernel/Docker evidence.
+1. **Expose Tributary deliberately.** `nuncio-vultr` runs
+   `tributary.service` on `127.0.0.1:8788` with `sandbox:"docker"` and
+   `ai.provider:"vultr"`. Expose via `sudo ufw allow 8788/tcp` for a direct
+   high-port demo URL or a Traefik/Coolify route for a prettier hostname.
 
-2. **Expose Tributary and add Vultr Inference.** `nuncio-vultr` already runs
-   `tributary.service` on `127.0.0.1:8788` with `sandbox:"docker"`. Add
-   `VULTR_INFERENCE_API_KEY` (and optionally `VULTR_INFERENCE_MODEL`) to
-   `/etc/tributary.env`, restart the unit, then expose it deliberately —
-   `sudo ufw allow 8788/tcp` for a direct high-port demo URL or a
-   Traefik/Coolify route for a prettier hostname.
+2. **Verify the public demo path.** After exposure, re-run `simulate`,
+   `/demo/pack`, and `POST /containment/lab` against the public URL so the
+   recording uses the same evidence judges will see.
 
-3. **Verify the public demo path.** On-box verification is done; after
-   exposure, `/config` should report `sandbox: "docker"` and
-   `ai.provider: "vultr"`. Re-run `simulate` and `/demo/pack` against the
-   public URL so the recording uses the same evidence judges will see.
+3. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
+   dashboard cold open → demo pack → watershed/confluence/rapids →
+   containment moment → evidence close. Add the lab as a short evidence beat
+   if time allows. `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
 
-4. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
-   dashboard cold open → demo pack → watershed/confluence/rapids → containment
-   moment → evidence close. `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
-
-5. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
+4. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
    short description, architecture summary, and rubric mapping. Optionally
    showcase on Vultr Community after the required lablab submission.
 
-6. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
+5. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
    repo and submission copy remain in `docs/SUBMISSION.md`; social preview
    still has to be set in GitHub repository settings if it has not been.
 
-7. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
+6. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
    add the `[[artifacts]]` block to `wrangler.toml`, drop the
    `LOCAL_ARTIFACTS` binding and its `v2` migration, `npx wrangler login`,
    then `npm run dev` and `npm run simulate`.
 
-8. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
+7. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
    evidence bundles for judge-verifiable receipts. The executed gate now runs
    `verify.cjs`/`verify.js` or `npm test`; the next gate upgrades are ESM
    `verify.mjs`, repo-native toolchains (tsc/eslint/test), and hunk-level
