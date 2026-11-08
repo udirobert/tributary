@@ -253,7 +253,145 @@ async function runGate(
 	}
 }
 
-function dockerRun(dir: string): Promise<RunResult> {
+const clipText = (s: string, n = 8000) =>
+	s.length > n ? `${s.slice(0, n)}\n… [truncated ${s.length - n} chars]` : s;
+
+interface ContainmentProbe {
+	id: string;
+	title: string;
+	timeoutMs: number;
+	script: string;
+	contained: (r: RunResult) => boolean;
+}
+
+const CONTAINMENT_PROBES: ContainmentProbe[] = [
+	{
+		id: "fork-bomb",
+		title: "Fork bomb",
+		timeoutMs: 8_000,
+		contained: (r) => r.timedOut || r.code !== 0,
+		script: `import { spawn } from "node:child_process";
+for (let i = 0; i < 256; i++) {
+	spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+}
+setInterval(() => {}, 1000);
+`,
+	},
+	{
+		id: "infinite-loop",
+		title: "Infinite loop",
+		timeoutMs: 8_000,
+		contained: (r) => r.timedOut || r.code !== 0,
+		script: `for (;;) { Math.random(); }`,
+	},
+	{
+		id: "network-egress",
+		title: "Network egress",
+		timeoutMs: 8_000,
+		contained: (r) => r.code === 0,
+		script: `try {
+	const res = await fetch("https://example.com/");
+	console.log("EGRESS_OK", res.status);
+	process.exit(1);
+} catch (err) {
+	console.log("EGRESS_BLOCKED", err?.cause?.code || err.message);
+}
+`,
+	},
+	{
+		id: "secret-read",
+		title: "Secret read",
+		timeoutMs: 8_000,
+		contained: (r) => r.code === 0,
+		script: `import { readFileSync } from "node:fs";
+try {
+	readFileSync("/etc/shadow", "utf8");
+	console.log("SECRET_READ_OK");
+	process.exit(1);
+} catch (err) {
+	console.log("SECRET_READ_BLOCKED", err.code || err.message);
+}
+`,
+	},
+	{
+		id: "read-only-delete",
+		title: "Read-only delete",
+		timeoutMs: 8_000,
+		contained: (r) => r.code === 0,
+		script: `import { rmSync, writeFileSync } from "node:fs";
+try {
+	rmSync("/work/.tributary-write-test", { recursive: true, force: true });
+	writeFileSync("/work/.tributary-write-test", "x");
+	console.log("WRITE_OK");
+	process.exit(1);
+} catch (err) {
+	console.log("WRITE_BLOCKED", err.code || err.message);
+}
+`,
+	},
+];
+
+export interface ContainmentProbeResult {
+	id: string;
+	title: string;
+	command: string;
+	provider: SandboxProvider;
+	spec: Record<string, string>;
+	exitCode: number;
+	durationMs: number;
+	timedOut: boolean;
+	stdout: string;
+	stderr: string;
+	contained: boolean;
+}
+
+export async function runContainmentLab(): Promise<{
+	provider: SandboxProvider;
+	spec: Record<string, string>;
+	ranAt: number;
+	probes: ContainmentProbeResult[];
+}> {
+	const provider = sandboxProvider();
+	if (provider === "off") {
+		return { provider, spec: {}, ranAt: Date.now(), probes: [] };
+	}
+	const spec = provider === "docker" ? DOCKER_SPEC : LOCAL_SPEC;
+	const probes: ContainmentProbeResult[] = [];
+	for (const probe of CONTAINMENT_PROBES) {
+		const dir = mkdtempSync(join(tmpdir(), "tributary-lab-"));
+		try {
+			writeFileSync(join(dir, "probe.mjs"), probe.script);
+			const result =
+				provider === "docker"
+					? await dockerRun(dir, "probe.mjs", probe.timeoutMs)
+					: await localRun(dir, join(dir, "probe.mjs"), probe.timeoutMs);
+			const stdout = clipText(result.stdout);
+			const stderr = clipText(result.stderr);
+			probes.push({
+				id: probe.id,
+				title: probe.title,
+				command: "node probe.mjs",
+				provider,
+				spec,
+				exitCode: result.code,
+				durationMs: result.durationMs,
+				timedOut: result.timedOut,
+				stdout,
+				stderr,
+				contained: probe.contained({ ...result, stdout, stderr }),
+			});
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	}
+	return { provider, spec, ranAt: Date.now(), probes };
+}
+
+function dockerRun(
+	dir: string,
+	entry = GATE_FILENAME,
+	timeoutMs = TIMEOUT_MS,
+): Promise<RunResult> {
 	return collect(
 		spawn(
 			"docker",
@@ -281,26 +419,35 @@ function dockerRun(dir: string): Promise<RunResult> {
 				"/work",
 				DOCKER_IMAGE,
 				"node",
-				GATE_FILENAME,
+				entry,
 			],
 			{ stdio: ["ignore", "pipe", "pipe"] },
 		),
+		timeoutMs,
 	);
 }
 
-function localRun(dir: string): Promise<RunResult> {
+function localRun(
+	dir: string,
+	entry = join(dir, GATE_FILENAME),
+	timeoutMs = TIMEOUT_MS,
+): Promise<RunResult> {
 	// Containment-lite: empty environment (no inherited secrets), isolated cwd,
 	// hard timeout. Documented as weaker than docker — used only for dev.
 	return collect(
-		spawn(process.execPath, [join(dir, GATE_FILENAME)], {
+		spawn(process.execPath, [entry], {
 			cwd: dir,
 			env: {},
 			stdio: ["ignore", "pipe", "pipe"],
 		}),
+		timeoutMs,
 	);
 }
 
-function collect(child: ReturnType<typeof spawn>): Promise<RunResult> {
+function collect(
+	child: ReturnType<typeof spawn>,
+	timeoutMs = TIMEOUT_MS,
+): Promise<RunResult> {
 	return new Promise((resolve) => {
 		const startedAt = Date.now();
 		let stdout = "";
@@ -311,7 +458,7 @@ function collect(child: ReturnType<typeof spawn>): Promise<RunResult> {
 		const timer = setTimeout(() => {
 			timedOut = true;
 			child.kill("SIGKILL");
-		}, TIMEOUT_MS);
+		}, timeoutMs);
 		child.on("error", (err) => {
 			clearTimeout(timer);
 			resolve({

@@ -13,7 +13,7 @@
 import { createServer } from "node:http";
 import { registerHooks } from "node:module";
 import { Readable } from "node:stream";
-import { sandboxProvider } from "./sandbox";
+import { runContainmentLab, sandboxProvider } from "./sandbox";
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
@@ -49,6 +49,7 @@ async function main() {
 		ClaimRegistry: mod.ClaimRegistry as never,
 		LocalArtifacts: mod.LocalArtifacts as never,
 	});
+	let lastContainmentLab: unknown = null;
 
 	console.log(
 		`[Tributary] node/vultr mode — ` +
@@ -70,6 +71,20 @@ async function main() {
 			}
 
 			const method = req.method ?? "GET";
+			const pathname = (req.url ?? "/").split("?")[0];
+			if (pathname === "/containment/lab") {
+				if (method === "POST") lastContainmentLab = await runContainmentLab();
+				res.writeHead(200, { "Content-Type": "application/json" });
+				res.end(
+					JSON.stringify(
+						lastContainmentLab ?? {
+							status: "not-run",
+							hint: "POST /containment/lab to run the probes",
+						},
+					),
+				);
+				return;
+			}
 			const request = new Request(
 				`http://${req.headers.host ?? "127.0.0.1"}${req.url}`,
 				{
