@@ -563,9 +563,10 @@ reduced-motion fallbacks) but changes the composition:
 - tasks become numbered survey rows in the ledger, and the evidence drawer is
   styled as an inspection report;
 - motion is drafting/choreography rather than ambient neon particles: a
-  pixel-cell cover/reveal on load/replay, origin-aware ink blots on task
-  inspection, hatch/pattern fills, stamp-in merges, redline feed rows, and a
-  canvas drafting-FX layer for beads/ripples/conflict bursts;
+  professional "surveying site" loading plate until the first state arrives,
+  origin-aware ink blots on task inspection, hatch/pattern fills, stamp-in
+  merges, redline feed rows, and a canvas drafting-FX layer for
+  beads/ripples/conflict bursts;
 - the visual system borrows concrete techniques from the shared references —
   Interlude-style cover/reveal + named transition helpers, Atelier North-style
   editorial title block/index rows/pixel transitions, R3F-sketch-style hatch
@@ -579,3 +580,13 @@ evidence, `?replay`, and canvas/FX mounting. Deployed to
 `node/vultr` + `sandbox:"docker"` + Vultr inference, `/` serves the Site Plan,
 `/hero.riv` is gone, and reduced-motion emulation disables both FX canvases
 while live state still renders.
+
+Follow-up refinement: the pixel boot wipe was replaced by a drafting loading
+plate (`Surveying site`) that hides once the first live or replay state
+arrives; the confluence was rebuilt as surveyed control point `CP-01` with a
+hatched basin, inner dashed ellipse, trunk-edge lines, crosshair/benchmark
+marker, and larger `CONFLUENCE`/metadata labels; central SVG and key UI type
+sizes were raised for readability. Verified locally with `prettier`, `tsc`,
+`eslint`, `npm test`, dashboard script `node --check`, and agent-browser QA
+for loading-state handoff, `/demo/pack` stamps/rapids/reject marks, `?replay`,
+and reduced-motion canvas hiding.

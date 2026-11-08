@@ -187,6 +187,30 @@ export const DASHBOARD_HTML = `<!doctype html>
   .sheet-wrap svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
   .plan-fx { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
   .fx-canvas { position: fixed; inset: 0; z-index: 70; width: 100%; height: 100%; pointer-events: none; }
+  .sheet-loading {
+    position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
+    background: linear-gradient(180deg, rgba(245,239,226,0.92), rgba(236,228,209,0.94));
+    pointer-events: none;
+  }
+  .sheet-loading[hidden] { display: none; }
+  .load-plate {
+    position: relative; min-width: 320px; padding: 24px 34px 22px; text-align: center;
+    border: 1.5px solid var(--ink3); background: rgba(255,255,255,0.42);
+    box-shadow: 6px 6px 0 rgba(34,48,74,0.12);
+    animation: loadPlate 700ms cubic-bezier(0.2,0.9,0.2,1) both;
+  }
+  .load-plate::before, .load-plate::after {
+    content: ""; position: absolute; width: 14px; height: 14px; border: 1.5px solid var(--ink2);
+  }
+  .load-plate::before { left: -7px; top: -7px; border-right: 0; border-bottom: 0; }
+  .load-plate::after { right: -7px; bottom: -7px; border-left: 0; border-top: 0; }
+  .load-kicker { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); }
+  .load-title { margin-top: 6px; font-family: var(--font-display); font-size: 30px; letter-spacing: 0.8px; color: var(--ink3); }
+  .load-rule { height: 2px; margin: 14px auto 10px; width: min(240px, 70%); background: rgba(34,48,74,0.14); overflow: hidden; }
+  .load-rule span { display: block; height: 100%; width: 0; background: var(--ink2); animation: loadRule 1.1s ease-out 250ms forwards; }
+  .load-sub { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); }
+  @keyframes loadPlate { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes loadRule { to { width: 100%; } }
   .sheet-cap { text-align: center; padding: 8px 0 10px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--faint); border-top: 1px dashed var(--line2); }
   .revision-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--line2); }
   .counter { padding: 10px 14px; border-left: 1px dashed var(--line); }
@@ -196,14 +220,24 @@ export const DASHBOARD_HTML = `<!doctype html>
   .counter label { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); text-transform: uppercase; letter-spacing: 1.1px; }
   @media (max-width: 720px) { .revision-strip { grid-template-columns: repeat(2,1fr); } .counter { border-top: 1px dashed var(--line); } }
 
+  /* readability pass: keep the drawing legible at dashboard scale */
+  .panel h2 { font-size: 11px; }
+  .tfb, .st, .spec-meta, .feed-row .b, .tl-row, .last-merge, .repo-files summary, .repo-files pre, .dsec h4 { font-size: 12px; }
+  .sheet-cap, .counter label, .cfgb, .live, .trunk-pill .label { font-size: 11px; }
+  .spec-goal { font-size: 14px; }
+  .counter span { font-size: 30px; }
+
   /* site plan svg */
   .sp-frame { fill: none; stroke: var(--ink3); stroke-width: 2; }
   .sp-grid { stroke: rgba(34,48,74,0.10); stroke-width: 1; }
   .sp-dim { stroke: var(--ink2); stroke-width: 1; }
-  .sp-label { fill: var(--dim); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 600; }
-  .sp-label.strong { fill: var(--ink3); font-weight: 700; }
+  .sp-label { fill: var(--dim); font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 1.8px; text-transform: uppercase; font-weight: 600; }
+  .sp-label.strong { fill: var(--ink3); font-weight: 800; }
   .sp-label.red { fill: var(--red); }
   .sp-label.green { fill: var(--green); }
+  .sp-display { fill: var(--ink3); font-family: var(--font-display); font-size: 27px; letter-spacing: 0.8px; }
+  .sp-display.sm { font-size: 20px; letter-spacing: 1.2px; }
+  .sp-meta { fill: var(--dim); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; }
   .sp-parcel { stroke: var(--ink3); stroke-width: 1.6; }
   .sp-parcel.wait { stroke-dasharray: 6 5; }
   .sp-channel { fill: none; stroke-linecap: round; }
@@ -212,7 +246,11 @@ export const DASHBOARD_HTML = `<!doctype html>
   .sp-trunk { fill: none; stroke: var(--ink2); stroke-width: 5; stroke-linecap: round; }
   .sp-trunk-core { fill: none; stroke: var(--ink3); stroke-width: 1.2; stroke-linecap: round; opacity: 0.65; stroke-dasharray: 2 10; }
   .sp-trunk.red { stroke: var(--red); }
-  .sp-basin { fill: rgba(44,95,138,0.08); stroke: var(--ink2); stroke-width: 1.4; }
+  .sp-basin-fill { stroke: var(--ink2); stroke-width: 1.5; }
+  .sp-basin-inner { fill: none; stroke: var(--ink3); stroke-width: 1.2; stroke-dasharray: 5 6; opacity: 0.75; }
+  .sp-trunk-edge { fill: none; stroke: rgba(16,35,63,0.32); stroke-width: 1.5; }
+  .sp-cp-line { stroke: var(--ink3); stroke-width: 1; }
+  .sp-cp { fill: var(--paper); stroke: var(--ink3); stroke-width: 2; }
   .sp-stamp { fill: none; stroke: var(--green); stroke-width: 1.8; }
   .sp-stamp text { fill: var(--green); font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
   .sp-reject { stroke: var(--red); stroke-width: 1.8; }
@@ -438,6 +476,16 @@ export const DASHBOARD_HTML = `<!doctype html>
               <path d="M34,150 H1166 M34,270 H1166 M34,390 H1166 M34,510 H1166 M34,630 H1166"/>
               <path d="M180,34 V726 M360,34 V726 M540,34 V726 M720,34 V726 M900,34 V726 M1080,34 V726"/>
             </g>
+            <g class="sp-meta" text-anchor="end">
+              <text x="1120" y="64">SHEET 1 / 1</text>
+              <text x="1120" y="82">DRAWN BY TRIBUTARY</text>
+              <text x="1120" y="100">SCALE 1:1 · REV A</text>
+            </g>
+            <g transform="translate(1120 152)">
+              <circle cx="0" cy="0" r="15" fill="none" stroke="#5d6a80" stroke-width="1.4"/>
+              <path d="M0,-10 L5,6 L0,3 L-5,6 Z" fill="#10233f"/>
+              <text class="sp-display sm" x="0" y="32" text-anchor="middle" style="font-size:15px">N</text>
+            </g>
             <path class="sp-dim draw-once" d="M60,706 H1140"/>
             <path class="sp-tick" d="M60,700 V712 M1140,700 V712"/>
             <text class="sp-label" x="60" y="730">SCALE 1:1 · REV A</text>
@@ -446,6 +494,14 @@ export const DASHBOARD_HTML = `<!doctype html>
           <g id="planLayer" filter="url(#inkRough)"></g>
         </svg>
         <canvas id="planFX" class="plan-fx" aria-hidden="true"></canvas>
+        <div class="sheet-loading" id="sheetLoading" role="status" aria-live="polite">
+          <div class="load-plate">
+            <div class="load-kicker">Tributary · Site Plan 001</div>
+            <div class="load-title">Surveying site</div>
+            <div class="load-rule"><span></span></div>
+            <div class="load-sub">Awaiting first feed — claims · confluence · trunk</div>
+          </div>
+        </div>
       </div>
       <div class="sheet-cap" id="sheetCap">The site is quiet — no changes in flight</div>
       <div class="revision-strip">
@@ -551,7 +607,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   };
 
   // ---- transition fx: cover/reveal + ink blot ----------------------------
-  var fx = { ctx: null, w: 0, h: 0, dpr: 1, mode: null, t: 0, dur: 0, cb: null, blobs: [], cells: [], raf: null, last: 0 };
+  var fx = { ctx: null, w: 0, h: 0, dpr: 1, mode: null, t: 0, dur: 0, cb: null, blobs: [], raf: null, last: 0 };
   var fxCanvas = function () { return $('fxCanvas'); };
   var fxReady = function () {
     var cvs = fxCanvas();
@@ -581,8 +637,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     var dt = Math.min(0.05, (ts - fx.last) / 1000 || 0.016);
     fx.last = ts;
     fx.t += dt;
-    if (fx.mode === 'wipe') drawWipe();
-    else if (fx.mode === 'blot') drawBlot(dt);
+    if (fx.mode === 'blot') drawBlot(dt);
     else {
       fxClear();
       if (!fx.blobs.length && !fx.mode) { fx.raf = null; return; }
@@ -595,32 +650,6 @@ export const DASHBOARD_HTML = `<!doctype html>
     fxResize();
     fx.last = performance.now();
     fx.raf = requestAnimationFrame(fxStep);
-  };
-  var drawWipe = function () {
-    var cvs = fxCanvas(), ctx = fx.ctx;
-    if (!cvs || !ctx) return;
-    var cols = 28, rows = 7, cw = fx.w / cols, ch = fx.h / rows;
-    var cover = Math.min(1, fx.t / (fx.dur * 0.52));
-    var reveal = Math.max(0, Math.min(1, (fx.t - fx.dur * 0.5) / (fx.dur * 0.5)));
-    ctx.setTransform(fx.dpr, 0, 0, fx.dpr, 0, 0);
-    ctx.clearRect(0, 0, fx.w, fx.h);
-    for (var i = 0; i < fx.cells.length; i++) {
-      var cell = fx.cells[i];
-      var cp = Math.min(1, Math.max(0, (cover - cell.at) / 0.16));
-      var rp = Math.min(1, Math.max(0, (reveal - cell.at * 0.7) / 0.2));
-      if (rp > 0) {
-        ctx.fillStyle = '#f5efe2';
-        ctx.fillRect(cell.x * cw - 0.5, cell.y * ch - 0.5, cw + 1, ch + 1);
-      } else if (cp > 0) {
-        ctx.fillStyle = cell.accent ? '#c8402a' : '#22304a';
-        ctx.fillRect(cell.x * cw - 0.5, cell.y * ch - 0.5, cw + 1, ch + 1);
-      }
-    }
-    if (fx.t >= fx.dur) {
-      var cb = fx.cb; fx.cb = null; fx.mode = null; fx.t = 0; fx.cells = [];
-      fxClear();
-      if (cb) cb();
-    }
   };
   var drawBlot = function (dt) {
     var ctx = fx.ctx;
@@ -644,25 +673,6 @@ export const DASHBOARD_HTML = `<!doctype html>
     }
     ctx.globalAlpha = 1;
     if (!fx.blobs.length) { fx.mode = null; fx.t = 0; fxClear(); if (!fx.raf) fx.raf = requestAnimationFrame(fxStep); }
-  };
-  var runWipe = function (cb) {
-    if (reducedMotion() || !fxReady()) { if (cb) cb(); return; }
-    fxResize();
-    fx.cells = [];
-    var cols = 28, rows = 7;
-    var probs = [0.08, 0.18, 0.38, 0.62, 0.85, 1, 1];
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        if (Math.random() > probs[r]) continue;
-        fx.cells.push({
-          x: c, y: r,
-          at: Math.random() * 0.32 + r * 0.055 + (c % 5) * 0.012,
-          accent: r < 4 && Math.random() < 0.045
-        });
-      }
-    }
-    fx.mode = 'wipe'; fx.t = 0; fx.dur = 0.9; fx.cb = cb;
-    fxKick();
   };
   var inkBlot = function (x, y, color) {
     if (reducedMotion() || !fxReady()) return;
@@ -997,11 +1007,21 @@ export const DASHBOARD_HTML = `<!doctype html>
     });
 
     // confluence basin + trunk
-    out.push('<ellipse class="sp-basin" cx="' + CONFLUENCE.x + '" cy="' + CONFLUENCE.y + '" rx="120" ry="58"/>');
-    out.push('<path class="sp-trunk' + (trunkRed ? ' red' : '') + '" d="' + trunkD() + '"/>');
-    out.push('<path class="sp-trunk-core" d="' + trunkD() + '" opacity="0.45"/>');
-    out.push('<text class="sp-label strong" x="' + CONFLUENCE.x + '" y="' + (CONFLUENCE.y - 42) + '" text-anchor="middle">CONFLUENCE</text>');
-    out.push('<text class="sp-label" x="' + CONFLUENCE.x + '" y="' + (CONFLUENCE.y + 76) + '" text-anchor="middle">SERIAL MERGE QUEUE</text>');
+    var bx = CONFLUENCE.x, by = CONFLUENCE.y, td = trunkD();
+    out.push('<ellipse class="sp-basin-fill" cx="' + bx + '" cy="' + by + '" rx="138" ry="66" fill="url(#hatchMid)" opacity="0.55"/>');
+    out.push('<ellipse class="sp-basin-inner" cx="' + bx + '" cy="' + by + '" rx="88" ry="38"/>');
+    out.push('<path class="sp-trunk-edge" d="' + td + '" transform="translate(0 -8)"/>');
+    out.push('<path class="sp-trunk-edge" d="' + td + '" transform="translate(0 8)"/>');
+    out.push('<path class="sp-trunk' + (trunkRed ? ' red' : '') + '" d="' + td + '"/>');
+    out.push('<path class="sp-trunk-core" d="' + td + '" opacity="0.5"/>');
+    out.push('<g class="sp-junction">' +
+      '<line class="sp-cp-line" x1="' + (bx - 26) + '" y1="' + by + '" x2="' + (bx + 26) + '" y2="' + by + '"/>' +
+      '<line class="sp-cp-line" x1="' + bx + '" y1="' + (by - 26) + '" x2="' + bx + '" y2="' + (by + 26) + '"/>' +
+      '<circle class="sp-cp" cx="' + bx + '" cy="' + by + '" r="11"/>' +
+      '<circle cx="' + bx + '" cy="' + by + '" r="3.5" fill="#10233f"/></g>');
+    out.push('<text class="sp-display" x="' + bx + '" y="' + (by - 76) + '" text-anchor="middle">CONFLUENCE</text>');
+    out.push('<text class="sp-label strong" x="' + bx + '" y="' + (by - 56) + '" text-anchor="middle">CP-01 · SERIAL MERGE QUEUE</text>');
+    out.push('<text class="sp-label" x="' + bx + '" y="' + (by + 104) + '" text-anchor="middle">VERIFIED REVISIONS ONLY</text>');
 
     // pending drops = in-flight tasks
     var inflight = tasks.filter(function (t) { return ['landed','rejected','failed'].indexOf(t.status) === -1; });
@@ -1245,8 +1265,16 @@ export const DASHBOARD_HTML = `<!doctype html>
   };
 
   // ---- state ---------------------------------------------------------------
+  var sheetReady = false;
+  var hideSheetLoading = function () {
+    if (sheetReady) return;
+    sheetReady = true;
+    var el = $('sheetLoading');
+    if (el) el.hidden = true;
+  };
   var lastMerges = null;
   var applyState = function (s) {
+    hideSheetLoading();
     var ts = s.stats || {};
     var green = ts.trunkStatus !== 'red';
     var light = $('trunkLight');
@@ -1393,7 +1421,7 @@ export const DASHBOARD_HTML = `<!doctype html>
         seek.value = '0';
         $('replaybar').hidden = false;
         $('onboard').hidden = true;
-        runWipe(function () { renderReplayFrame(); });
+        renderReplayFrame();
         if (replay.events.length > 1) togglePlay();
       })
       .catch(function () { setPill('stale', 'Replay unavailable'); });
@@ -1516,9 +1544,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     .catch(function () {});
 
   initPlanFX();
-  runWipe(function () {
-    if (location.search.indexOf('replay') !== -1) startReplay(); else startStream();
-  });
+  if (location.search.indexOf('replay') !== -1) startReplay(); else startStream();
 })();
 </script>
 </body>
