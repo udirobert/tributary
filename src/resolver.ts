@@ -13,6 +13,8 @@ import { MemoryFS } from "./memory-fs";
 // Workers AI is only available when [ai] binding is configured in wrangler.toml.
 // Typed loosely so the module compiles in both local and deployed contexts.
 export interface AiBinding {
+	/** Actual provider model label for provenance when the binding adapts another API. */
+	model?: string;
 	run(
 		model: string,
 		input: { messages: { role: string; content: string }[] },
@@ -20,6 +22,7 @@ export interface AiBinding {
 }
 
 const RESOLVER_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+const aiModelFor = (ai?: AiBinding) => ai?.model ?? RESOLVER_MODEL;
 
 // GitLab-Duo-style staged commit author.
 const RESOLVER_AUTHOR = {
@@ -99,7 +102,7 @@ async function aiResolveHunk(
 		`<<<<<<< OURS\n${ours}\n=======\n${theirs}\n>>>>>>> THEIRS`;
 
 	try {
-		const out = await ai.run(RESOLVER_MODEL, {
+		const out = await ai.run(aiModelFor(ai), {
 			messages: [
 				{
 					role: "system",
@@ -194,6 +197,7 @@ export async function resolveConflict(
 	if (opts?.sides?.length) {
 		const contents: Record<string, string> = {};
 		let usedAi = false;
+		const aiModel = aiModelFor(opts.ai);
 		for (const side of opts.sides) {
 			let resolved = side.ours;
 			let via = "fallback (yield to trunk)";
@@ -206,7 +210,7 @@ export async function resolveConflict(
 				);
 				if (aiOut != null) {
 					resolved = aiOut;
-					via = RESOLVER_MODEL;
+					via = aiModel;
 					usedAi = true;
 				}
 			}
@@ -217,7 +221,7 @@ export async function resolveConflict(
 			status: "resolved",
 			files: Object.keys(contents),
 			contents,
-			via: usedAi ? RESOLVER_MODEL : "fallback (yield to trunk)",
+			via: usedAi ? aiModel : "fallback (yield to trunk)",
 		};
 	}
 
@@ -256,6 +260,7 @@ export async function resolveConflict(
 
 	// ── Stage 2: Resolve each file via AI ────────────────────────────────────
 	const resolvedFiles: string[] = [];
+	const aiModel = aiModelFor(opts.ai);
 
 	for (const file of conflictedFiles) {
 		let content: string;
@@ -281,7 +286,7 @@ export async function resolveConflict(
 		const aiAvailable = !!opts.ai;
 		console.log(
 			`[Resolver] ${file}: ${hunks.length} hunk(s) — ` +
-				`calling ${aiAvailable ? RESOLVER_MODEL : "fallback (no AI binding)"} …`,
+				`calling ${aiAvailable ? aiModel : "fallback (no AI binding)"} …`,
 		);
 
 		const resolutions: string[] = [];
@@ -331,7 +336,7 @@ export async function resolveConflict(
 			dir,
 			message:
 				`resolver: resolve conflict in ${resolvedFiles.join(", ")} ` +
-				`(agent: ${agentId}, model: ${opts.ai ? RESOLVER_MODEL : "fallback"})`,
+				`(agent: ${agentId}, model: ${opts.ai ? aiModel : "fallback"})`,
 			author: RESOLVER_AUTHOR,
 		});
 		const push = await git.push({
@@ -350,7 +355,7 @@ export async function resolveConflict(
 			return {
 				status: "resolved",
 				files: resolvedFiles,
-				via: opts.ai ? RESOLVER_MODEL : "fallback",
+				via: opts.ai ? aiModel : "fallback",
 			};
 		} else {
 			console.error("[Resolver] Push rejected:", push.error);

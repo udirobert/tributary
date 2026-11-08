@@ -14,6 +14,7 @@ export function vultrInference() {
 	const model = process.env.VULTR_INFERENCE_MODEL ?? "vultr/glm-5.3-flash";
 
 	return {
+		model,
 		async run(
 			_model: string,
 			input: { messages: { role: string; content: string }[] },
