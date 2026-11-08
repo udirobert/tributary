@@ -95,8 +95,9 @@ Field notes from the Nov 8 research pass:
 - Sandbox boundary: Docker sibling containers on the same VM, unprivileged
   uid `65534`; never inside the app process. `POST /containment/lab` runs five
   hostile probes through the same boundary — all contained on Vultr.
-- Public demo URL: pending — `nuncio-vultr` runs `127.0.0.1:8788` with ufw
-  active; expose via `sudo ufw allow 8788/tcp` or a Traefik/Coolify route.
+- Public demo URL: `https://tributary.persidian.com` — Coolify Traefik
+  dynamic route to the host service on `8788`; UFW allows `8788` only from
+  `10.0.0.0/8` (Docker/Traefik), not the public internet.
 
 ## Demo beats for the video
 
@@ -127,8 +128,8 @@ Before recording, `/config` must show `sandbox: "docker"` and
 1. **Executed-work proof — done locally and on Vultr.** The Docker/local gate
    runs the merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside the
    same sandbox and returns command/stdout/stderr/exit code as task evidence.
-   Proven on `nuncio-vultr` with `sandbox: "docker"` at `127.0.0.1:8788`;
-   remaining: public URL check.
+   Proven on `nuncio-vultr` with `sandbox: "docker"` and publicly at
+   `https://tributary.persidian.com`; remaining: record demo.
 2. **Demo repo fixture.** The trunk seed now carries `verify.cjs`; keep it
    small and intentional so "agents edit a repo that must stay green" is
    concrete for judges.
@@ -142,9 +143,11 @@ Before recording, `/config` must show `sandbox: "docker"` and
 5. **Receipts.** Gate evidence exists; consider SHA-256 hashing the evidence
    bundle (plan, edits, gate output, container spec, commit SHA) for a
    judge-verifiable receipt.
-6. **Deployed verification — done on-box.** `simulate`, `/demo/pack`, and
-   `POST /containment/lab` ran on `nuncio-vultr` with Docker gates and Vultr
-   Inference; remaining: repeat against the public URL after exposure.
+6. **Deployed verification — done on-box and public.** `simulate`,
+   `/demo/pack`, and `POST /containment/lab` ran on `nuncio-vultr` with Docker
+   gates and Vultr Inference; `https://tributary.persidian.com/config`
+   reports `sandbox: "docker"` + `ai.provider: "vultr"`. Remaining: record
+   demo.
 
 ## Submission field copy
 

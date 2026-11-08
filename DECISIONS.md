@@ -496,3 +496,16 @@ fork bomb and infinite loop hit the 8s probe timeout, network egress failed
 with `EAI_AGAIN`, secret read failed with `EACCES`, and read-only write
 failed with `EROFS`. `npm run simulate` still passes with the unprivileged
 gate.
+
+## Public exposure (Nov 8, 2026)
+
+`tributary.persidian.com` was already DNS-only to `144.202.117.160`. Coolify's
+Traefik (`coolify-proxy`, file provider watching
+`/data/coolify/proxy/dynamic/`) got a new `tributary.yaml` router/service for
+the subdomain with Let's Encrypt TLS and an HTTP→HTTPS redirect; the backend
+is `http://host.docker.internal:8788`. To let the proxy reach the host service
+without opening the port publicly, `/etc/tributary.env` now uses
+`HOST=0.0.0.0` and UFW has `8788/tcp ALLOW IN From 10.0.0.0/8` only — the same
+pattern as the other Docker/Traefik services on the box. Public
+`https://tributary.persidian.com/config` returns `sandbox:"docker"` +
+`ai.provider:"vultr"`, and `/` returns the dashboard.

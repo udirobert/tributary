@@ -48,10 +48,10 @@ Artifacts shim.
 The active target is the **Vultr Agent Rush Challenge 1 — “Blast Radius
 Zero”** path documented in DECISIONS.md and `docs/VULTR_SUBMISSION.md`:
 many agents, one trunk, zero blast radius. The Node/Vultr control plane is
-implemented and verified locally and on a real Vultr VM (`nuncio-vultr`) with
-the Docker sandbox, Vultr Inference (`vultr/glm-5.3-flash`), and the
-containment lab; the remaining proof is public exposure and the recorded
-demo.
+implemented and verified locally, on a real Vultr VM (`nuncio-vultr`), and
+publicly at `https://tributary.persidian.com` with the Docker sandbox, Vultr
+Inference (`vultr/glm-5.3-flash`), and the containment lab; the remaining
+proof is the recorded demo and lablab submission.
 
 The Nov 8 positioning pass found the visible field crowded with single-run
 containment products (generate code → sandbox → receipt). Tributary's
@@ -62,39 +62,34 @@ the sandbox gate runs the merged tree's `verify.cjs`/`verify.js` (or `npm
 test`) inside the same throwaway container and returns executed stdout/
 stderr/exit code as task evidence. The containment lab is also live:
 `POST /containment/lab` runs five hostile probes through the same Docker
-boundary and all five are contained on `nuncio-vultr`. What remains for
-Challenge 1 is public exposure and a repeatable recorded demo.
+boundary and all five are contained on `nuncio-vultr`. Public exposure is
+also done: Coolify Traefik routes `tributary.persidian.com` to the host
+service while UFW keeps `8788` private except from Docker/Traefik sources.
+What remains for Challenge 1 is a repeatable recorded demo.
 
 ## What is left
 
-1. **Expose Tributary deliberately.** `nuncio-vultr` runs
-   `tributary.service` on `127.0.0.1:8788` with `sandbox:"docker"` and
-   `ai.provider:"vultr"`. Expose via `sudo ufw allow 8788/tcp` for a direct
-   high-port demo URL or a Traefik/Coolify route for a prettier hostname.
+1. **Record the Vultr demo.** Use `https://tributary.persidian.com` (Coolify
+   Traefik → host service on `8788`; UFW allows `8788` only from
+   `10.0.0.0/8`). Follow `docs/VULTR_SUBMISSION.md` demo beats: dashboard cold
+   open → `/demo/pack` → watershed/confluence/rapids → containment moment →
+   evidence close. Hit `POST /containment/lab` if time allows.
+   `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
 
-2. **Verify the public demo path.** After exposure, re-run `simulate`,
-   `/demo/pack`, and `POST /containment/lab` against the public URL so the
-   recording uses the same evidence judges will see.
-
-3. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
-   dashboard cold open → demo pack → watershed/confluence/rapids →
-   containment moment → evidence close. Add the lab as a short evidence beat
-   if time allows. `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
-
-4. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
+2. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
    short description, architecture summary, and rubric mapping. Optionally
    showcase on Vultr Community after the required lablab submission.
 
-5. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
+3. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
    repo and submission copy remain in `docs/SUBMISSION.md`; social preview
    still has to be set in GitHub repository settings if it has not been.
 
-6. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
+4. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
    add the `[[artifacts]]` block to `wrangler.toml`, drop the
    `LOCAL_ARTIFACTS` binding and its `v2` migration, `npx wrangler login`,
    then `npm run dev` and `npm run simulate`.
 
-7. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
+5. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
    evidence bundles for judge-verifiable receipts. The executed gate now runs
    `verify.cjs`/`verify.js` or `npm test`; the next gate upgrades are ESM
    `verify.mjs`, repo-native toolchains (tsc/eslint/test), and hunk-level
