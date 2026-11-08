@@ -15,7 +15,13 @@
  * CJS-oriented; ESM `verify.mjs` is a known follow-up.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdtempSync,
+	mkdirSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type {
@@ -211,6 +217,7 @@ async function runGate(
 	provider: "docker" | "local",
 ): Promise<SandboxGateResult> {
 	const dir = mkdtempSync(join(tmpdir(), "tributary-gate-"));
+	chmodSync(dir, 0o755);
 	try {
 		for (const [path, content] of Object.entries(files)) {
 			const full = join(dir, path);
@@ -360,6 +367,7 @@ export async function runContainmentLab(): Promise<{
 	const probes: ContainmentProbeResult[] = [];
 	for (const probe of CONTAINMENT_PROBES) {
 		const dir = mkdtempSync(join(tmpdir(), "tributary-lab-"));
+		chmodSync(dir, 0o755);
 		try {
 			writeFileSync(join(dir, "probe.mjs"), probe.script);
 			const result =
@@ -416,6 +424,8 @@ function dockerRun(
 				"64",
 				"--tmpfs",
 				"/tmp:rw,noexec,nosuid,size=16m",
+				"-e",
+				"HOME=/tmp",
 				"-v",
 				`${dir}:/work:ro`,
 				"-w",
