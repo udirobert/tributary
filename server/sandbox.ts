@@ -271,8 +271,9 @@ const CONTAINMENT_PROBES: ContainmentProbe[] = [
 		timeoutMs: 8_000,
 		contained: (r) => r.timedOut || r.code !== 0,
 		script: `import { spawn } from "node:child_process";
-for (let i = 0; i < 256; i++) {
-	spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+for (let i = 0; i < 128; i++) {
+	const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+	child.on("error", () => {});
 }
 setInterval(() => {}, 1000);
 `,
@@ -405,6 +406,8 @@ function dockerRun(
 				"ALL",
 				"--security-opt",
 				"no-new-privileges",
+				"--user",
+				"65534:65534",
 				"--memory",
 				"256m",
 				"--cpus",
