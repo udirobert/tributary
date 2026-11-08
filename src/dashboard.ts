@@ -212,7 +212,8 @@ export const DASHBOARD_HTML = `<!doctype html>
   .river-wrap { position: relative; flex: 1 1 auto; min-height: 320px; padding: 6px 10px 0; }
   .river-wrap svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
   .flow-canvas { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
-  @media (prefers-reduced-motion: reduce) { .flow-canvas { display: none; } }
+  .rive-hero { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.92; }
+  @media (prefers-reduced-motion: reduce) { .flow-canvas, .rive-hero { display: none; } }
   .river-cap { text-align: center; padding: 6px 0 12px; font-size: 10.5px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--faint); }
   .stage-counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 0 16px 16px; }
   .counter { background: rgba(255,255,255,0.035); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
@@ -431,6 +432,7 @@ export const DASHBOARD_HTML = `<!doctype html>
         </div>
       </div>
       <div class="river-wrap">
+        <canvas id="riveHero" class="rive-hero" aria-hidden="true"></canvas>
         <svg id="river" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Live river of agent changes converging into the trunk">
           <defs>
             <linearGradient id="rvTrunkGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0">
@@ -1012,6 +1014,60 @@ export const DASHBOARD_HTML = `<!doctype html>
     flow.raf = requestAnimationFrame(frameFlow);
   };
 
+  var riveHero = null, riveMode = -1;
+  var setRiveMode = function (mode) {
+    if (mode === riveMode) return;
+    riveMode = mode;
+    if (!riveHero) return;
+    try {
+      var inputs = riveHero.stateMachineInputs('Hero');
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].name === 'mode') { inputs[i].value = mode; break; }
+      }
+    } catch (e) {}
+  };
+  var initRive = function () {
+    var cvs = $('riveHero');
+    if (!cvs || !cvs.getContext) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { cvs.style.display = 'none'; return; }
+    import('https://esm.sh/@rive-app/webgl2@2.49.4')
+      .then(function (m) {
+        var lib = m.Rive ? m : m.default;
+        if (!lib || !lib.Rive || riveHero) return;
+        lib.Rive.suppressDeprecationWarnings = (lib.Rive.suppressDeprecationWarnings || []).concat(['state-machine-inputs']);
+        riveHero = new lib.Rive({
+          src: '/hero.riv',
+          canvas: cvs,
+          stateMachine: 'Hero',
+          autoplay: true,
+          layout: new lib.Layout({ fit: lib.Fit.Contain, alignment: lib.Alignment.Center }),
+          onLoad: function () {
+            try { riveHero.resizeDrawingSurfaceToCanvas(); } catch (e) {}
+            setRiveMode(riveMode < 0 ? 0 : riveMode);
+          },
+          onLoadError: function () { cvs.style.display = 'none'; }
+        });
+        if (window.ResizeObserver && cvs.parentElement) {
+          new ResizeObserver(function () {
+            try { riveHero && riveHero.resizeDrawingSurfaceToCanvas(); } catch (e) {}
+          }).observe(cvs.parentElement);
+        }
+        window.addEventListener('resize', function () {
+          try { riveHero.resizeDrawingSurfaceToCanvas(); } catch (e) {}
+        });
+      })
+      .catch(function () { cvs.style.display = 'none'; });
+  };
+  var heroModeFor = function (s) {
+    var counts = {};
+    (s.tasks || []).forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+    if (counts.resolving) return 3;
+    if ((s.waitlist || []).length) return 2;
+    if ((s.activeClaims || []).length || counts.claiming || counts.working || counts.merging) return 1;
+    if (((s.stats || {}).totalMerges) || 0) return 4;
+    return 0;
+  };
+
   var riverSig = null;
   var renderRiver = function (s) {
     var claims = s.activeClaims || [];
@@ -1144,6 +1200,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     renderFeed(s.events);
     renderLastMerge(ts.lastMerge);
     renderRiver(s);
+    setRiveMode(heroModeFor(s));
     if (s.tasks) renderTasks(s.tasks);
     var inflight = (s.tasks || []).filter(function (t) {
       return ['landed','rejected','failed'].indexOf(t.status) === -1;
@@ -1395,6 +1452,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     .catch(function () {});
 
   initFlow();
+  initRive();
   if (location.search.indexOf('replay') !== -1) startReplay(); else startStream();
 })();
 </script>
