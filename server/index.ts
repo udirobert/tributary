@@ -121,11 +121,15 @@ async function main() {
 			);
 			const shouldGzip = acceptsGzip && compressible && Boolean(response.body);
 			if (shouldGzip) {
-				responseHeaders["Content-Encoding"] = "gzip";
-				delete responseHeaders["Content-Length"];
-				responseHeaders["Vary"] = responseHeaders["Vary"]
-					? `${responseHeaders["Vary"]}, Accept-Encoding`
-					: "Accept-Encoding";
+				responseHeaders["content-encoding"] = "gzip";
+				delete responseHeaders["content-length"];
+				const vary = responseHeaders["vary"];
+				const hasAcceptEncoding = vary
+					? /(?:^|,)\s*accept-encoding\s*(?:,|$)/i.test(vary)
+					: false;
+				if (vary && hasAcceptEncoding) responseHeaders["vary"] = vary;
+				else if (vary) responseHeaders["vary"] = `${vary}, Accept-Encoding`;
+				else responseHeaders["vary"] = "Accept-Encoding";
 			}
 			res.writeHead(response.status, responseHeaders);
 			if (response.body) {
