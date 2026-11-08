@@ -590,3 +590,23 @@ sizes were raised for readability. Verified locally with `prettier`, `tsc`,
 `eslint`, `npm test`, dashboard script `node --check`, and agent-browser QA
 for loading-state handoff, `/demo/pack` stamps/rapids/reject marks, `?replay`,
 and reduced-motion canvas hiding.
+
+## Public site hardening (Nov 8, 2026)
+
+Added the missing public surface around the dashboard: `/favicon.svg`,
+`/favicon.png`, `/favicon.ico`, `/site.webmanifest`, `/robots.txt`, and
+`/sitemap.xml` are served by the Worker (`src/site.ts`), and the dashboard head
+now declares description/robots/theme-color/icon/manifest links plus
+non-blocking Google Fonts loading.
+
+All Worker fetch responses now pass through a security-header wrapper
+(`src/index.ts`): CSP, nosniff, referrer/permissions policy, frame denial,
+HSTS, and same-origin resource policy. The dashboard HTML uses an ETag +
+`Cache-Control: no-cache` so repeat loads can 304; the Node/Vultr entry honors
+`X-Forwarded-Proto` for correct sitemap/robots origins and gzip-compresses
+compressible non-SSE responses.
+
+Verified locally: `prettier`, `tsc`, `eslint`, `npm test`, dashboard script
+`node --check`, curl checks for public files/security headers/ETag 304/gzip
+(~85KB HTML to ~22KB gzipped), and agent-browser QA for favicon/manifest/font
+loading plus live state.

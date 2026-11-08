@@ -13,6 +13,7 @@
 import { createServer } from "node:http";
 import { registerHooks } from "node:module";
 import { Readable } from "node:stream";
+import { createGzip } from "node:zlib";
 import { runContainmentLab, sandboxProvider } from "./sandbox";
 
 registerHooks({
@@ -74,7 +75,18 @@ async function main() {
 			const pathname = (req.url ?? "/").split("?")[0];
 			if (pathname === "/containment/lab") {
 				if (method === "POST") lastContainmentLab = await runContainmentLab();
-				res.writeHead(200, { "Content-Type": "application/json" });
+				res.writeHead(200, {
+					"Content-Type": "application/json",
+					"Cache-Control": "no-store",
+					"X-Content-Type-Options": "nosniff",
+					"Referrer-Policy": "strict-origin-when-cross-origin",
+					"Permissions-Policy":
+						"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()",
+					"X-Frame-Options": "DENY",
+					"Content-Security-Policy":
+						"default-src 'none'; frame-ancestors 'none'",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				});
 				res.end(
 					JSON.stringify(
 						lastContainmentLab ?? {
@@ -85,19 +97,41 @@ async function main() {
 				);
 				return;
 			}
-			const request = new Request(
-				`http://${req.headers.host ?? "127.0.0.1"}${req.url}`,
-				{
-					method,
-					headers,
-					body: method === "GET" || method === "HEAD" ? undefined : body,
-				},
-			);
+			const forwardedProto =
+				req.headers["x-forwarded-proto"] ?? req.headers["x-forwarded-protocol"];
+			const forwarded = Array.isArray(forwardedProto)
+				? forwardedProto[0]
+				: forwardedProto;
+			const proto = forwarded?.split(",")[0]?.trim() || "http";
+			const host = req.headers.host ?? `127.0.0.1:${PORT}`;
+			const request = new Request(`${proto}://${host}${req.url}`, {
+				method,
+				headers,
+				body: method === "GET" || method === "HEAD" ? undefined : body,
+			});
 
 			const response = await worker.fetch(request, env);
-			res.writeHead(response.status, Object.fromEntries(response.headers));
+			const responseHeaders = Object.fromEntries(response.headers);
+			const contentType = response.headers.get("content-type") ?? "";
+			const acceptsGzip = /\bgzip\b/.test(
+				String(req.headers["accept-encoding"] ?? ""),
+			);
+			const compressible = /(?:text\/(?!event-stream)|json|xml|svg)/.test(
+				contentType,
+			);
+			const shouldGzip = acceptsGzip && compressible && Boolean(response.body);
+			if (shouldGzip) {
+				responseHeaders["Content-Encoding"] = "gzip";
+				delete responseHeaders["Content-Length"];
+				responseHeaders["Vary"] = responseHeaders["Vary"]
+					? `${responseHeaders["Vary"]}, Accept-Encoding`
+					: "Accept-Encoding";
+			}
+			res.writeHead(response.status, responseHeaders);
 			if (response.body) {
-				Readable.fromWeb(response.body as never).pipe(res);
+				const stream = Readable.fromWeb(response.body as never);
+				if (shouldGzip) stream.pipe(createGzip()).pipe(res);
+				else stream.pipe(res);
 			} else {
 				res.end();
 			}

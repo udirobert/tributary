@@ -6,6 +6,7 @@ import { DurableObject } from "cloudflare:workers";
 import { resolveConflict } from "./resolver";
 import { mergeTaskIntoTrunk } from "./merge";
 import { DASHBOARD_HTML } from "./dashboard";
+import { publicFileResponse } from "./site";
 import { LocalArtifacts } from "./artifacts-local";
 import {
 	enqueueAgentTask,
@@ -72,6 +73,54 @@ const TRUNK_SOURCE = {
 const EVENT_CAP = 2000;
 /** Keep-alive cadence for SSE connections (proxies drop idle streams). */
 const HEARTBEAT_MS = 15_000;
+
+const SECURITY_HEADERS: Record<string, string> = {
+	"Content-Security-Policy":
+		"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'",
+	"X-Content-Type-Options": "nosniff",
+	"Referrer-Policy": "strict-origin-when-cross-origin",
+	"Permissions-Policy":
+		"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()",
+	"X-Frame-Options": "DENY",
+	"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+	"Cross-Origin-Resource-Policy": "same-origin",
+};
+
+function withSecurityHeaders(response: Response): Response {
+	const headers = new Headers(response.headers);
+	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+		if (!headers.has(key)) headers.set(key, value);
+	}
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}
+
+function fnv1a(input: string): string {
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < input.length; i++) {
+		hash ^= input.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193) >>> 0;
+	}
+	return hash.toString(16).padStart(8, "0");
+}
+
+const DASHBOARD_ETAG = `"${fnv1a(DASHBOARD_HTML)}"`;
+
+function dashboardResponse(request: Request): Response {
+	const headers = new Headers({
+		"Content-Type": "text/html; charset=utf-8",
+		"Cache-Control": "no-cache",
+		ETag: DASHBOARD_ETAG,
+		Vary: "Accept-Encoding",
+	});
+	if (request.headers.get("if-none-match") === DASHBOARD_ETAG) {
+		return new Response(null, { status: 304, headers });
+	}
+	return new Response(DASHBOARD_HTML, { headers });
+}
 
 /** The offline Artifacts provider, used when the real binding is not bound. */
 function localArtifacts(env: Env): any {
@@ -760,388 +809,394 @@ export class ClaimRegistry extends DurableObject {
 	}
 }
 
+async function handleFetch(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
+	const url = new URL(request.url);
+
+	if (request.method === "GET") {
+		if (url.pathname === "/") return dashboardResponse(request);
+		const publicFile = publicFileResponse(url.pathname, url.origin);
+		if (publicFile) return publicFile;
+	}
+
+	// The product surface: dispatch a goal to the built-in agent, then
+	// watch the task flow through the pipeline. `edits` supplied in the
+	// body skip the planning model (manual/demo path).
+	if (url.pathname === "/tasks" && request.method === "POST") {
+		const body = (await request.json().catch(() => ({}))) as any;
+		if (typeof body.goal !== "string" || !body.goal.trim()) {
+			return Response.json({ error: "goal is required" }, { status: 400 });
+		}
+		const id = `t-${crypto.randomUUID().slice(0, 8)}`;
+		const stub = env.CLAIM_REGISTRY.get(
+			env.CLAIM_REGISTRY.idFromName("global"),
+		);
+		const task = await stub.createTask({
+			id,
+			agentId:
+				typeof body.agentId === "string" && body.agentId
+					? body.agentId
+					: `agent-${id.slice(2)}`,
+			goal: body.goal,
+			footprint: Array.isArray(body.footprint) ? body.footprint : [],
+			edits:
+				body.edits && typeof body.edits === "object" ? body.edits : undefined,
+		});
+		const run = runAgentTask(env, id);
+		if (ctx?.waitUntil) ctx.waitUntil(run);
+		else void run;
+		return Response.json(task, { status: 201 });
+	}
+
+	if (url.pathname === "/tasks" && request.method === "GET") {
+		const stub = env.CLAIM_REGISTRY.get(
+			env.CLAIM_REGISTRY.idFromName("global"),
+		);
+		return Response.json(await stub.listTasks(50));
+	}
+
+	if (request.method === "GET" && url.pathname.startsWith("/tasks/")) {
+		const stub = env.CLAIM_REGISTRY.get(
+			env.CLAIM_REGISTRY.idFromName("global"),
+		);
+		const task = await stub.getTask(decodeURIComponent(url.pathname.slice(7)));
+		return task
+			? Response.json(task)
+			: Response.json({ error: "not found" }, { status: 404 });
+	}
+
+	// Which providers are actually live — the UI shows these as badges so
+	// the Vultr services in play are explicit, not implied.
+	if (request.method === "GET" && url.pathname === "/config") {
+		return Response.json(
+			env.RUNTIME_INFO ?? {
+				mode: "cloudflare-workers",
+				sandbox: "in-process",
+				ai: env.AI
+					? {
+							provider: "workers-ai",
+							model: "@cf/meta/llama-3.1-8b-instruct-fast",
+						}
+					: undefined,
+			},
+		);
+	}
+
+	// Repo browser — the verified trees the merges produced, readable by
+	// anyone. Local provider only; the remote Artifacts surface is for
+	// pipelines, not browsing.
+	if (request.method === "GET" && url.pathname === "/repos") {
+		if (!env.LOCAL_ARTIFACTS) {
+			return Response.json(
+				{ error: "repo browser needs the local Artifacts provider" },
+				{ status: 501 },
+			);
+		}
+		const store = localArtifacts(env) as unknown as {
+			listRepos(): Promise<string[]>;
+		};
+		return Response.json({ repos: await store.listRepos() });
+	}
+
+	if (request.method === "GET" && url.pathname.startsWith("/repos/")) {
+		if (!env.LOCAL_ARTIFACTS) {
+			return Response.json(
+				{ error: "repo browser needs the local Artifacts provider" },
+				{ status: 501 },
+			);
+		}
+		const name = decodeURIComponent(url.pathname.slice(7));
+		const store = localArtifacts(env) as unknown as {
+			readTree(a: { repo: string }): Promise<Record<string, string>>;
+		};
+		const files = await store.readTree({ repo: name }).catch(() => null);
+		return files
+			? Response.json({ repo: name, files })
+			: Response.json({ error: "not found" }, { status: 404 });
+	}
+
+	// Demo pack: three preset tasks that exercise the whole arc without an
+	// inference key — a clean landing, a same-line conflict that reaches
+	// the rapids, and a db rewrite the executed sandbox verification rejects.
+	if (request.method === "POST" && url.pathname === "/demo/pack") {
+		const stub = env.CLAIM_REGISTRY.get(
+			env.CLAIM_REGISTRY.idFromName("global"),
+		);
+		const RENDER = "exports.render = (name) => `<h1>${name}</h1>`;\n";
+		const pack: { goal: string; edits: Record<string, string> }[] = [
+			{
+				goal: "bump the package version line to 3.1.11-a",
+				edits: { "src/index.js": `${RENDER}exports.version = '3.1.11-a';\n` },
+			},
+			{
+				goal: "bump the package version line to 3.1.11-b",
+				edits: { "src/index.js": `${RENDER}exports.version = '3.1.11-b';\n` },
+			},
+			{
+				goal: "rewrite the db connector",
+				edits: {
+					"src/db.js":
+						'exports.connect = () => ({ query: "not-a-function" });\n' +
+						"function rows(sql, params) { return []; }\n" +
+						'exports.preview = () => rows("select 1");\n',
+				},
+			},
+		];
+		const ids: string[] = [];
+		for (const [i, p] of pack.entries()) {
+			const id = `t-demo-${crypto.randomUUID().slice(0, 6)}-${i}`;
+			await stub.createTask({
+				id,
+				agentId: `agent-demo-${"abc"[i]}`,
+				goal: p.goal,
+				footprint: [],
+				edits: p.edits,
+			});
+			ids.push(id);
+		}
+
+		// Prepare every fork before enqueueing any merge. If task B waits
+		// for task A's claim, it still forks the same pre-merge trunk — the
+		// confluence then produces the intended same-line conflict instead
+		// of accidentally landing B on top of A's already-merged edit.
+		const prepared = await Promise.all(
+			ids.map(async (id) => {
+				try {
+					return await prepareAgentTask(env, id);
+				} catch (err) {
+					await stub
+						.updateTask(id, {
+							status: "failed",
+							reason: (err as Error).message ?? String(err),
+						})
+						.catch(() => undefined);
+					return null;
+				}
+			}),
+		);
+		for (const task of prepared) {
+			if (!task) continue;
+			try {
+				await enqueueAgentTask(env, task);
+			} catch (err) {
+				await stub
+					.updateTask(task.taskId, {
+						status: "failed",
+						reason: (err as Error).message ?? String(err),
+					})
+					.catch(() => undefined);
+			}
+		}
+		return Response.json({ tasks: ids });
+	}
+
+	// Expose Claim Registry via HTTP for the spike/demo
+	if (url.pathname.startsWith("/registry/")) {
+		// Extract registry ID, default to "global" for the spike
+		const id = env.CLAIM_REGISTRY.idFromName("global");
+		const stub = env.CLAIM_REGISTRY.get(id);
+
+		if (request.method === "POST" && url.pathname === "/registry/claim") {
+			const body = (await request.json().catch(() => ({}))) as any;
+			const res = await stub.requestClaim(
+				body.agentId,
+				body.files,
+				body.ttlSeconds,
+			);
+			return Response.json(res);
+		}
+
+		if (request.method === "POST" && url.pathname === "/registry/release") {
+			const body = (await request.json().catch(() => ({}))) as any;
+			const res = await stub.releaseClaim(body.agentId);
+			return Response.json(res);
+		}
+
+		if (request.method === "GET" && url.pathname === "/registry/status") {
+			const res = await stub.getStatus();
+			return Response.json(res);
+		}
+
+		// Live stream — the dashboard subscribes here instead of polling.
+		if (request.method === "GET" && url.pathname === "/registry/events") {
+			return stub.subscribe();
+		}
+
+		// Full event history, for the dashboard's `?replay` timeline.
+		if (request.method === "GET" && url.pathname === "/registry/replay") {
+			return Response.json(await stub.replay());
+		}
+	}
+
+	if (request.method === "POST" && url.pathname === "/import") {
+		if (env.ARTIFACTS) {
+			const imported = await env.ARTIFACTS.import({
+				source: TRUNK_SOURCE,
+				target: { name: TRUNK_NAME },
+			});
+			return Response.json({
+				name: imported.name,
+				remote: imported.remote,
+				token: imported.token,
+				provider: "artifacts",
+			});
+		}
+
+		const imported = await localArtifacts(env).importRepo({
+			url: TRUNK_SOURCE.url,
+			name: TRUNK_NAME,
+		});
+		return Response.json({ ...imported, provider: "local" });
+	}
+
+	if (request.method === "POST" && url.pathname === "/fork") {
+		const body = (await request.json().catch(() => ({}))) as any;
+		const taskName = body.name || "ejs-task-1";
+
+		if (env.ARTIFACTS) {
+			using repo = await env.ARTIFACTS.get(TRUNK_NAME);
+			const forked = await repo.fork(taskName, {
+				description: `Fork for ${taskName}`,
+				defaultBranchOnly: true,
+			});
+			using forkRepo = await env.ARTIFACTS.get(taskName);
+			const token = await forkRepo.createToken("write", 3600);
+			return Response.json({
+				name: forked.name,
+				remote: forked.remote,
+				token: token.plaintext,
+				provider: "artifacts",
+			});
+		}
+
+		const forked = await localArtifacts(env).forkRepo({
+			from: TRUNK_NAME,
+			to: taskName,
+		});
+		return Response.json({ ...forked, provider: "local" });
+	}
+
+	if (request.method === "POST" && url.pathname === "/commit") {
+		const body = (await request.json().catch(() => ({}))) as any;
+		const { repoName, remote, token, agentId, files, changedFiles, edits } =
+			body;
+
+		// The files the agent actually wrote: `edits` maps path -> content.
+		// When omitted we keep the spike's original single-file behaviour.
+		const changes: Record<string, string> =
+			edits && typeof edits === "object" && Object.keys(edits).length > 0
+				? edits
+				: { "spike.txt": `Hello from spike at ${Date.now()}` };
+		const message = `Agent commit from ${agentId ?? "agent-1"}`;
+
+		let commit: string | undefined;
+		if (env.ARTIFACTS) {
+			const tokenSecret = token.split("?expires=")[0];
+			const dir = "/workspace";
+			const fs = new MemoryFS();
+			await git.init({ fs, dir, defaultBranch: "main" });
+			await git.addRemote({ fs, dir, remote: "origin", url: remote });
+			await git.fetch({
+				fs,
+				http,
+				dir,
+				ref: "main",
+				depth: 1,
+				onAuth: () => ({ username: "x", password: tokenSecret }),
+			});
+			for (const [filepath, content] of Object.entries(changes)) {
+				await fs.promises.writeFile(`${dir}/${filepath}`, content);
+				await git.add({ fs, dir, filepath });
+			}
+			commit = await git.commit({
+				fs,
+				dir,
+				message,
+				author: { name: "Agent", email: "agent@tributary.dev" },
+			});
+			const push = await git.push({
+				fs,
+				http,
+				dir,
+				url: remote,
+				ref: "main",
+				onAuth: () => ({ username: "x", password: tokenSecret }),
+			});
+			if (!push.ok) {
+				return Response.json(
+					{ error: `push rejected: ${push.error ?? "unknown"}` },
+					{ status: 502 },
+				);
+			}
+		} else {
+			const result = await localArtifacts(env).commitFiles({
+				repo: repoName,
+				files: changes,
+				message,
+			});
+			commit = result.commit;
+		}
+
+		// Hand the finished tributary to the confluence (the serial merge
+		// queue). We forward the agent's declared footprint and the files it
+		// actually changed so the confluence can detect footprint violations
+		// (i.e. an agent that touched a file it didn't declare) and route
+		// those to the rapids as residual conflicts.
+		const changedList =
+			Array.isArray(changedFiles) && changedFiles.length > 0
+				? changedFiles
+				: Object.keys(changes);
+		await env.MERGE_QUEUE.send({
+			agentId: agentId ?? "agent-1",
+			taskRepo: repoName,
+			token: token,
+			files: Array.isArray(files) ? files : [],
+			changedFiles: changedList,
+		});
+
+		return Response.json({
+			commit,
+			queued: true,
+			changedFiles: changedList,
+			provider: env.ARTIFACTS ? "artifacts" : "local",
+		});
+	}
+
+	// Demo hook: simulate a footprint-violating task end-to-end without
+	// requiring a real second Artifacts repo. We skip the queue and hand
+	// the violation straight to the resolver so the dashboard's
+	// "resolver runs" counter ticks up on demand.
+	if (request.method === "POST" && url.pathname === "/demo/conflict") {
+		const id2 = env.CLAIM_REGISTRY.idFromName("global");
+		const stub2 = env.CLAIM_REGISTRY.get(id2);
+		await stub2.recordMergeResult({
+			success: false,
+			agentId: "agent-misbehave",
+			repo: "demo-fault-repo",
+			reason: "wrote src/auth.js outside its declared footprint",
+		});
+		await resolveConflict("agent-misbehave", "", ["src/auth.js"], {
+			ai: env.AI,
+		});
+		return Response.json({ routed: "resolver", kind: "footprint-violation" });
+	}
+
+	return Response.json(
+		{ message: "Welcome to Tributary Spike" },
+		{ status: 404 },
+	);
+}
+
 export default {
 	async fetch(
 		request: Request,
 		env: Env,
 		ctx?: ExecutionContext,
 	): Promise<Response> {
-		const url = new URL(request.url);
-
-		// The product surface: dispatch a goal to the built-in agent, then
-		// watch the task flow through the pipeline. `edits` supplied in the
-		// body skip the planning model (manual/demo path).
-		if (url.pathname === "/tasks" && request.method === "POST") {
-			const body = (await request.json().catch(() => ({}))) as any;
-			if (typeof body.goal !== "string" || !body.goal.trim()) {
-				return Response.json({ error: "goal is required" }, { status: 400 });
-			}
-			const id = `t-${crypto.randomUUID().slice(0, 8)}`;
-			const stub = env.CLAIM_REGISTRY.get(
-				env.CLAIM_REGISTRY.idFromName("global"),
-			);
-			const task = await stub.createTask({
-				id,
-				agentId:
-					typeof body.agentId === "string" && body.agentId
-						? body.agentId
-						: `agent-${id.slice(2)}`,
-				goal: body.goal,
-				footprint: Array.isArray(body.footprint) ? body.footprint : [],
-				edits:
-					body.edits && typeof body.edits === "object" ? body.edits : undefined,
-			});
-			const run = runAgentTask(env, id);
-			if (ctx?.waitUntil) ctx.waitUntil(run);
-			else void run;
-			return Response.json(task, { status: 201 });
-		}
-
-		if (url.pathname === "/tasks" && request.method === "GET") {
-			const stub = env.CLAIM_REGISTRY.get(
-				env.CLAIM_REGISTRY.idFromName("global"),
-			);
-			return Response.json(await stub.listTasks(50));
-		}
-
-		if (request.method === "GET" && url.pathname.startsWith("/tasks/")) {
-			const stub = env.CLAIM_REGISTRY.get(
-				env.CLAIM_REGISTRY.idFromName("global"),
-			);
-			const task = await stub.getTask(
-				decodeURIComponent(url.pathname.slice(7)),
-			);
-			return task
-				? Response.json(task)
-				: Response.json({ error: "not found" }, { status: 404 });
-		}
-
-		// Which providers are actually live — the UI shows these as badges so
-		// the Vultr services in play are explicit, not implied.
-		if (request.method === "GET" && url.pathname === "/config") {
-			return Response.json(
-				env.RUNTIME_INFO ?? {
-					mode: "cloudflare-workers",
-					sandbox: "in-process",
-					ai: env.AI
-						? {
-								provider: "workers-ai",
-								model: "@cf/meta/llama-3.1-8b-instruct-fast",
-							}
-						: undefined,
-				},
-			);
-		}
-
-		// Repo browser — the verified trees the merges produced, readable by
-		// anyone. Local provider only; the remote Artifacts surface is for
-		// pipelines, not browsing.
-		if (request.method === "GET" && url.pathname === "/repos") {
-			if (!env.LOCAL_ARTIFACTS) {
-				return Response.json(
-					{ error: "repo browser needs the local Artifacts provider" },
-					{ status: 501 },
-				);
-			}
-			const store = localArtifacts(env) as unknown as {
-				listRepos(): Promise<string[]>;
-			};
-			return Response.json({ repos: await store.listRepos() });
-		}
-
-		if (request.method === "GET" && url.pathname.startsWith("/repos/")) {
-			if (!env.LOCAL_ARTIFACTS) {
-				return Response.json(
-					{ error: "repo browser needs the local Artifacts provider" },
-					{ status: 501 },
-				);
-			}
-			const name = decodeURIComponent(url.pathname.slice(7));
-			const store = localArtifacts(env) as unknown as {
-				readTree(a: { repo: string }): Promise<Record<string, string>>;
-			};
-			const files = await store.readTree({ repo: name }).catch(() => null);
-			return files
-				? Response.json({ repo: name, files })
-				: Response.json({ error: "not found" }, { status: 404 });
-		}
-
-		// Demo pack: three preset tasks that exercise the whole arc without an
-		// inference key — a clean landing, a same-line conflict that reaches
-		// the rapids, and a db rewrite the executed sandbox verification rejects.
-		if (request.method === "POST" && url.pathname === "/demo/pack") {
-			const stub = env.CLAIM_REGISTRY.get(
-				env.CLAIM_REGISTRY.idFromName("global"),
-			);
-			const RENDER = "exports.render = (name) => `<h1>${name}</h1>`;\n";
-			const pack: { goal: string; edits: Record<string, string> }[] = [
-				{
-					goal: "bump the package version line to 3.1.11-a",
-					edits: { "src/index.js": `${RENDER}exports.version = '3.1.11-a';\n` },
-				},
-				{
-					goal: "bump the package version line to 3.1.11-b",
-					edits: { "src/index.js": `${RENDER}exports.version = '3.1.11-b';\n` },
-				},
-				{
-					goal: "rewrite the db connector",
-					edits: {
-						"src/db.js":
-							'exports.connect = () => ({ query: "not-a-function" });\n' +
-							"function rows(sql, params) { return []; }\n" +
-							'exports.preview = () => rows("select 1");\n',
-					},
-				},
-			];
-			const ids: string[] = [];
-			for (const [i, p] of pack.entries()) {
-				const id = `t-demo-${crypto.randomUUID().slice(0, 6)}-${i}`;
-				await stub.createTask({
-					id,
-					agentId: `agent-demo-${"abc"[i]}`,
-					goal: p.goal,
-					footprint: [],
-					edits: p.edits,
-				});
-				ids.push(id);
-			}
-
-			// Prepare every fork before enqueueing any merge. If task B waits
-			// for task A's claim, it still forks the same pre-merge trunk — the
-			// confluence then produces the intended same-line conflict instead
-			// of accidentally landing B on top of A's already-merged edit.
-			const prepared = await Promise.all(
-				ids.map(async (id) => {
-					try {
-						return await prepareAgentTask(env, id);
-					} catch (err) {
-						await stub
-							.updateTask(id, {
-								status: "failed",
-								reason: (err as Error).message ?? String(err),
-							})
-							.catch(() => undefined);
-						return null;
-					}
-				}),
-			);
-			for (const task of prepared) {
-				if (!task) continue;
-				try {
-					await enqueueAgentTask(env, task);
-				} catch (err) {
-					await stub
-						.updateTask(task.taskId, {
-							status: "failed",
-							reason: (err as Error).message ?? String(err),
-						})
-						.catch(() => undefined);
-				}
-			}
-			return Response.json({ tasks: ids });
-		}
-
-		// Expose Claim Registry via HTTP for the spike/demo
-		if (url.pathname.startsWith("/registry/")) {
-			// Extract registry ID, default to "global" for the spike
-			const id = env.CLAIM_REGISTRY.idFromName("global");
-			const stub = env.CLAIM_REGISTRY.get(id);
-
-			if (request.method === "POST" && url.pathname === "/registry/claim") {
-				const body = (await request.json().catch(() => ({}))) as any;
-				const res = await stub.requestClaim(
-					body.agentId,
-					body.files,
-					body.ttlSeconds,
-				);
-				return Response.json(res);
-			}
-
-			if (request.method === "POST" && url.pathname === "/registry/release") {
-				const body = (await request.json().catch(() => ({}))) as any;
-				const res = await stub.releaseClaim(body.agentId);
-				return Response.json(res);
-			}
-
-			if (request.method === "GET" && url.pathname === "/registry/status") {
-				const res = await stub.getStatus();
-				return Response.json(res);
-			}
-
-			// Live stream — the dashboard subscribes here instead of polling.
-			if (request.method === "GET" && url.pathname === "/registry/events") {
-				return stub.subscribe();
-			}
-
-			// Full event history, for the dashboard's `?replay` timeline.
-			if (request.method === "GET" && url.pathname === "/registry/replay") {
-				return Response.json(await stub.replay());
-			}
-		}
-
-		if (request.method === "POST" && url.pathname === "/import") {
-			if (env.ARTIFACTS) {
-				const imported = await env.ARTIFACTS.import({
-					source: TRUNK_SOURCE,
-					target: { name: TRUNK_NAME },
-				});
-				return Response.json({
-					name: imported.name,
-					remote: imported.remote,
-					token: imported.token,
-					provider: "artifacts",
-				});
-			}
-
-			const imported = await localArtifacts(env).importRepo({
-				url: TRUNK_SOURCE.url,
-				name: TRUNK_NAME,
-			});
-			return Response.json({ ...imported, provider: "local" });
-		}
-
-		if (request.method === "POST" && url.pathname === "/fork") {
-			const body = (await request.json().catch(() => ({}))) as any;
-			const taskName = body.name || "ejs-task-1";
-
-			if (env.ARTIFACTS) {
-				using repo = await env.ARTIFACTS.get(TRUNK_NAME);
-				const forked = await repo.fork(taskName, {
-					description: `Fork for ${taskName}`,
-					defaultBranchOnly: true,
-				});
-				using forkRepo = await env.ARTIFACTS.get(taskName);
-				const token = await forkRepo.createToken("write", 3600);
-				return Response.json({
-					name: forked.name,
-					remote: forked.remote,
-					token: token.plaintext,
-					provider: "artifacts",
-				});
-			}
-
-			const forked = await localArtifacts(env).forkRepo({
-				from: TRUNK_NAME,
-				to: taskName,
-			});
-			return Response.json({ ...forked, provider: "local" });
-		}
-
-		if (request.method === "POST" && url.pathname === "/commit") {
-			const body = (await request.json().catch(() => ({}))) as any;
-			const { repoName, remote, token, agentId, files, changedFiles, edits } =
-				body;
-
-			// The files the agent actually wrote: `edits` maps path -> content.
-			// When omitted we keep the spike's original single-file behaviour.
-			const changes: Record<string, string> =
-				edits && typeof edits === "object" && Object.keys(edits).length > 0
-					? edits
-					: { "spike.txt": `Hello from spike at ${Date.now()}` };
-			const message = `Agent commit from ${agentId ?? "agent-1"}`;
-
-			let commit: string | undefined;
-			if (env.ARTIFACTS) {
-				const tokenSecret = token.split("?expires=")[0];
-				const dir = "/workspace";
-				const fs = new MemoryFS();
-				await git.init({ fs, dir, defaultBranch: "main" });
-				await git.addRemote({ fs, dir, remote: "origin", url: remote });
-				await git.fetch({
-					fs,
-					http,
-					dir,
-					ref: "main",
-					depth: 1,
-					onAuth: () => ({ username: "x", password: tokenSecret }),
-				});
-				for (const [filepath, content] of Object.entries(changes)) {
-					await fs.promises.writeFile(`${dir}/${filepath}`, content);
-					await git.add({ fs, dir, filepath });
-				}
-				commit = await git.commit({
-					fs,
-					dir,
-					message,
-					author: { name: "Agent", email: "agent@tributary.dev" },
-				});
-				const push = await git.push({
-					fs,
-					http,
-					dir,
-					url: remote,
-					ref: "main",
-					onAuth: () => ({ username: "x", password: tokenSecret }),
-				});
-				if (!push.ok) {
-					return Response.json(
-						{ error: `push rejected: ${push.error ?? "unknown"}` },
-						{ status: 502 },
-					);
-				}
-			} else {
-				const result = await localArtifacts(env).commitFiles({
-					repo: repoName,
-					files: changes,
-					message,
-				});
-				commit = result.commit;
-			}
-
-			// Hand the finished tributary to the confluence (the serial merge
-			// queue). We forward the agent's declared footprint and the files it
-			// actually changed so the confluence can detect footprint violations
-			// (i.e. an agent that touched a file it didn't declare) and route
-			// those to the rapids as residual conflicts.
-			const changedList =
-				Array.isArray(changedFiles) && changedFiles.length > 0
-					? changedFiles
-					: Object.keys(changes);
-			await env.MERGE_QUEUE.send({
-				agentId: agentId ?? "agent-1",
-				taskRepo: repoName,
-				token: token,
-				files: Array.isArray(files) ? files : [],
-				changedFiles: changedList,
-			});
-
-			return Response.json({
-				commit,
-				queued: true,
-				changedFiles: changedList,
-				provider: env.ARTIFACTS ? "artifacts" : "local",
-			});
-		}
-
-		if (request.method === "GET" && url.pathname === "/") {
-			return new Response(DASHBOARD_HTML, {
-				headers: { "Content-Type": "text/html; charset=utf-8" },
-			});
-		}
-
-		// Demo hook: simulate a footprint-violating task end-to-end without
-		// requiring a real second Artifacts repo. We skip the queue and hand
-		// the violation straight to the resolver so the dashboard's
-		// "resolver runs" counter ticks up on demand.
-		if (request.method === "POST" && url.pathname === "/demo/conflict") {
-			const id2 = env.CLAIM_REGISTRY.idFromName("global");
-			const stub2 = env.CLAIM_REGISTRY.get(id2);
-			await stub2.recordMergeResult({
-				success: false,
-				agentId: "agent-misbehave",
-				repo: "demo-fault-repo",
-				reason: "wrote src/auth.js outside its declared footprint",
-			});
-			await resolveConflict("agent-misbehave", "", ["src/auth.js"], {
-				ai: env.AI,
-			});
-			return Response.json({ routed: "resolver", kind: "footprint-violation" });
-		}
-
-		return Response.json(
-			{ message: "Welcome to Tributary Spike" },
-			{ status: 404 },
-		);
+		return withSecurityHeaders(await handleFetch(request, env, ctx));
 	},
 
 	/** The confluence: land finished tributaries on the trunk, one at a time. */
