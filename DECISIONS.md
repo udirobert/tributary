@@ -610,3 +610,34 @@ Verified locally: `prettier`, `tsc`, `eslint`, `npm test`, dashboard script
 `node --check`, curl checks for public files/security headers/ETag 304/gzip
 (~85KB HTML to ~22KB gzipped), and agent-browser QA for favicon/manifest/font
 loading plus live state.
+
+## Center stage rebuild — tracer watershed (Nov 8, 2026)
+
+Rebuilt the dashboard center stage as a surveyor's site plan with a living
+overlay, dropping the Three.js/esm.sh particle experiment entirely (CSP
+`script-src` is back to `'self' 'unsafe-inline'`, no external script).
+
+Composition is centered on the lock: `CONFLUENCE`/`CHAMBER` at (600, 400),
+claim channels fan in from the top band, the as-built trunk exits to the
+bottom-right, the legend anchors bottom-left, and the staged dock became a
+ruled staging yard (`YARD`) — a 3x4 parcel grid with a "+N more" tally, one
+animated leader into the approach, a pulsing head parcel, and per-parcel
+tooltips instead of permanent labels. Claims render at most six channels and
+aggregate the rest.
+
+Two layers: a static SVG underlay (`#planLayer`, redrawn only when structure
+changes) carries the plan and, under `prefers-reduced-motion`, the whole scene
+including frozen landed-revision rings; a Canvas 2D overlay (`#planFX`) carries
+tracers, the CP-01 serial-lock choreography (upstream gate swing, collar fill,
+downstream gate, green comet), age-fading rings, and conflict bursts.
+
+The map and the ledger are now one instrument: hovering a tracer, ring, claim
+channel or staged parcel shows a tooltip and highlights plus scrolls the
+matching ledger row into view; clicking a tracer opens that task's inspection
+drawer; hovering a ledger row puts a dashed hot ring on its tracer.
+
+Verified locally: `prettier`, `tsc`, `eslint` (0 errors), `npm test`, dashboard
+script `node --check`, and agent-browser QA with synthetic pointer events for
+both interlink directions, click-to-drawer, staged-parcel tooltips, live/queued
+/merging/rejected states, reduced-motion, replay, and an empty console. Pixels
+were approved by the owner before commit.

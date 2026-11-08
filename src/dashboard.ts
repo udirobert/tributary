@@ -56,7 +56,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
-    .plan-fx, .fx-canvas, .merge-sim { display: none !important; }
+    .plan-fx, .fx-canvas { display: none !important; }
   }
   :focus-visible { outline: 2px solid var(--ink2); outline-offset: 2px; border-radius: 4px; }
 
@@ -193,8 +193,7 @@ export const DASHBOARD_HTML = `<!doctype html>
 
   .sheet-wrap { position: relative; flex: 1 1 auto; min-height: 340px; padding: 8px 12px 0; }
   .sheet-wrap svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
-  .plan-fx { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
-  .merge-sim { position: absolute; top: 8px; left: 12px; z-index: 2; width: calc(100% - 24px); height: calc(100% - 8px); pointer-events: none; }
+  .plan-fx { position: absolute; top: 8px; left: 12px; z-index: 3; width: calc(100% - 24px); height: calc(100% - 8px); }
   .fx-canvas { position: fixed; inset: 0; z-index: 70; width: 100%; height: 100%; pointer-events: none; }
   .sheet-loading {
     position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
@@ -269,6 +268,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .sp-tick { stroke: var(--ink3); stroke-width: 1; }
   .sp-arrow { fill: none; stroke: var(--ink3); stroke-width: 1.6; stroke-linecap: round; }
   .draw-once { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: drawPath 2.4s ease-out forwards; }
+  .sp-grow { stroke-dasharray: 100; stroke-dashoffset: 100; animation: drawPath 1.6s ease-out forwards; }
   @keyframes drawPath { to { stroke-dashoffset: 0; } }
   .stamp-in { transform-box: fill-box; transform-origin: center; animation: stampIn 0.55s cubic-bezier(0.2,1.4,0.3,1) both; }
   @keyframes stampIn { 0% { transform: scale(1.7) rotate(-14deg); opacity: 0; } 60% { transform: scale(0.94) rotate(-7deg); opacity: 1; } 100% { transform: scale(1) rotate(-8deg); opacity: 1; } }
@@ -290,6 +290,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     background: rgba(255,255,255,0.42); cursor: pointer; transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
   }
   .spec-row:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--ink3); border-color: var(--ink3); }
+  .spec-row.hl { background: rgba(44,95,138,0.12); border-color: var(--ink3); }
   .spec-row::before {
     content: attr(data-idx); position: absolute; left: 10px; top: 9px; font-family: var(--font-display);
     font-size: 18px; color: var(--faint); line-height: 1;
@@ -502,7 +503,6 @@ export const DASHBOARD_HTML = `<!doctype html>
           </g>
           <g id="planLayer" filter="url(#inkRough)"></g>
         </svg>
-        <canvas id="mergeSim" class="merge-sim" aria-hidden="true"></canvas>
         <canvas id="planFX" class="plan-fx" aria-hidden="true"></canvas>
         <div class="sheet-loading" id="sheetLoading" role="status" aria-live="polite">
           <div class="load-plate">
@@ -793,6 +793,8 @@ export const DASHBOARD_HTML = `<!doctype html>
         inkBlot(r.left + r.width / 2, r.top + r.height / 2, 'rgba(44,95,138,0.45)');
         openDrawer(el.getAttribute('data-task'));
       });
+      el.addEventListener('mouseenter', function () { flow.hoverTask = el.getAttribute('data-task'); });
+      el.addEventListener('mouseleave', function () { flow.hoverTask = null; });
     });
     if (openTaskId && tasksById[openTaskId]) renderDrawer(tasksById[openTaskId]);
   };
@@ -924,7 +926,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   var PALETTE = ['#2c5f8a', '#6e4f2a', '#7a3b2e', '#2f6b4f', '#5b4b8a', '#8a5a2b', '#3f5a7a', '#6e2f4f'];
   var colorFor = function (name, i) { return PALETTE[(hash(String(name || 'x')) + i) % PALETTE.length]; };
   var W = 1200, H = 760;
-  var CONFLUENCE = { x: 640, y: 560 };
+  var CONFLUENCE = { x: 600, y: 400 };
   var makePath = function (pts) {
     var cum = [0], len = 0;
     for (var i = 1; i < pts.length; i++) {
@@ -972,783 +974,679 @@ export const DASHBOARD_HTML = `<!doctype html>
     if (sig === planSig) return;
     planSig = sig;
 
-    var fd = { claims: [], waitlist: [], rapids: [], trunk: makePath(sampleCubic([CONFLUENCE.x, CONFLUENCE.y], [850, CONFLUENCE.y - 70], [1040, CONFLUENCE.y + 35], [1160, 505], 72)), confluence: CONFLUENCE, outflow: null, merges: merges, trunkRed: trunkRed, tasks: tasks.map(function (t, i) { return { id: t.id, status: t.status, agentId: t.agentId, idx: i + 1 }; }) };
+    var fd = { claims: [], waitlist: [], rapids: [], trunk: makePath(sampleCubic([CONFLUENCE.x, CONFLUENCE.y], [830, 470], [1010, 560], [1150, 640], 72)), confluence: CONFLUENCE, outflow: null, merges: merges, trunkRed: trunkRed, tasks: tasks.map(function (t, i) { return { id: t.id, status: t.status, agentId: t.agentId, idx: i + 1 }; }) };
     var op = pointAt(fd.trunk, fd.trunk.len - 24);
     fd.outflow = { x: op.x, y: op.y };
 
-    claims.forEach(function (c, i) {
+    claims.slice(0, 6).forEach(function (c, i) {
       var color = colorFor(c.agentId, i);
-      var ax = 150 + (i % 3) * 190, ay = 190 + Math.floor(i / 3) * 130;
+      var ax = 170 + (i % 3) * 310, ay = 120 + Math.floor(i / 3) * 95;
       var files = (c.files && c.files.length) || 0;
-      fd.claims.push({ agentId: c.agentId, color: color, files: files, endX: CONFLUENCE.x, anchor: { x: ax, y: ay }, path: makePath(sampleCubic([ax, ay], [ax + 140, ay - 60], [CONFLUENCE.x - 180, CONFLUENCE.y - 140], [CONFLUENCE.x, CONFLUENCE.y], 44)) });
+      fd.claims.push({ agentId: c.agentId, color: color, files: files, endX: CONFLUENCE.x, anchor: { x: ax, y: ay }, path: makePath(sampleCubic([ax, ay], [ax + (CONFLUENCE.x - ax) * 0.35, ay + (CONFLUENCE.y - ay) * 0.15], [ax + (CONFLUENCE.x - ax) * 0.7, ay + (CONFLUENCE.y - ay) * 0.62], [CONFLUENCE.x, CONFLUENCE.y], 44)) });
     });
-    queued.slice(0, 6).forEach(function (w, i) {
-      var wx = 120 + (i % 3) * 160, wy = 116 + Math.floor(i / 3) * 72;
-      fd.waitlist.push({ agentId: w.agentId, anchor: { x: wx, y: wy }, path: makePath([[wx, wy + 16], [wx + 120, wy + 16]]) });
+    fd.claimsMore = Math.max(0, claims.length - 6);
+    queued.slice(0, YARD_CAP).forEach(function (w, i) {
+      var p = yardPos(i);
+      fd.waitlist.push({ agentId: w.agentId, files: (w.files && w.files.length) || 0, anchor: { x: p.x, y: p.y } });
     });
+    fd.stagedMore = Math.max(0, queued.length - YARD_CAP);
 
     var inflight = tasks.filter(function (t) { return ['landed','rejected','failed'].indexOf(t.status) === -1; });
     var rapidsActive = Math.min(rapids + inflight.filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length, 5);
     for (var r = 0; r < rapidsActive; r++) {
       var pt = pointAt(fd.trunk, fd.trunk.len * (0.24 + r * 0.13));
-      fd.rapids.push({ x: pt.x, y: pt.y - 44 - (r % 2) * 18 });
+      fd.rapids.push({ x: pt.x, y: pt.y - 40 - (r % 2) * 16 });
     }
 
-    var layer = $('planLayer');
-    if (layer) layer.innerHTML = '';
+    var structKey = claims.map(function (c) { return c.agentId; }).join(',') + '|' +
+      queued.map(function (w) { return w.agentId; }).join(',') + '|' + merges + '|' + rapids + '|' + (trunkRed ? 'red' : 'green');
+    if (structKey !== structSig) {
+      structSig = structKey;
+      var fresh = {};
+      var nextIds = {};
+      claims.forEach(function (c) { fresh[c.agentId] = !prevClaimIds[c.agentId]; nextIds[c.agentId] = true; });
+      prevClaimIds = nextIds;
+      drawPlanStatic(fd, fresh);
+    }
     $('sheetCap').textContent = (!claims.length && !queued.length && !merges)
       ? 'The site is quiet — no changes in flight'
       : (claims.length + ' in flight · ' + queued.length + ' staged · ' + merges + ' landed' + (rapids ? ' · ' + rapids + ' rapids' : ''));
 
-    updatePlanFX(fd);
+    flowSetState(fd);
   };
 
-  // ---- plan fx: drafting particles over the sheet -------------------------
-  var flow = {
-    data: null, emitters: [], byKey: {}, particles: [], bursts: [], ripples: [], sprites: {},
-    raf: null, last: 0, time: 0, lastMerges: -1, w: 0, h: 0, dpr: 1, burstAcc: 0
-  };
-  var makeSprite = function (color) {
-    if (flow.sprites[color]) return flow.sprites[color];
-    var c = document.createElement('canvas');
-    c.width = c.height = 48;
-    var g = c.getContext('2d');
-    var grad = g.createRadialGradient(24, 24, 0, 24, 24, 24);
-    grad.addColorStop(0, 'rgba(255,255,255,0.85)');
-    grad.addColorStop(0.3, color);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 48, 48);
-    flow.sprites[color] = c;
-    return c;
-  };
-  var updatePlanFX = function (fd) {
-    flow.data = fd || flow.data;
-    var d = flow.data;
-    if (!d || !d.trunk) return;
-    if (sim && sim.active) { simSetState(d); return; }
-    flow.emitters = [];
-    flow.byKey = {};
-    var claims = d.claims || [];
-    var add = function (e) { flow.emitters.push(e); flow.byKey[e.key] = e; e.acc = 0; };
-    add({ key: 'trunk', path: d.trunk, rate: 7 + (d.merges || 0) * 1.4 + claims.length * 1.8, color: '#22304a', size: 5, alpha: 0.42, speed: 120, wobble: 3, freq: 1.0, hold: false });
-    claims.forEach(function (c) {
-      add({ key: 'claim:' + c.agentId, path: c.path, rate: 5, color: c.color, size: 6, alpha: 0.85, speed: 150, wobble: 5, freq: 1.5, hold: false, nextKey: 'trunk', nextDist: 0 });
-    });
-    (d.waitlist || []).forEach(function (w) {
-      add({ key: 'wait:' + w.agentId, path: w.path, rate: 2.5, color: '#9a6a1f', size: 5, alpha: 0.7, speed: 46, wobble: 2, freq: 1.8, hold: true });
-    });
-    var m = d.merges || 0;
-    if (flow.lastMerges >= 0 && m > flow.lastMerges) {
-      flow.ripples.push({ x: d.confluence.x, y: d.confluence.y, r: 10, vr: 52, a: 0.7, color: '#2c5f8a' });
-      flow.ripples.push({ x: d.outflow.x, y: d.outflow.y, r: 10, vr: 60, a: 0.65, color: '#2f6b4f' });
-    }
-    flow.lastMerges = m;
-  };
-  var spawnFor = function (e) {
-    var start = e.hold ? Math.random() * e.path.len : Math.random() * Math.min(36, e.path.len * 0.2);
+  // ---- tracer watershed -----------------------------------------------------
+  // Living layer of the center stage, drawn in plain Canvas 2D over the static
+  // SVG underlay: comet tracers run down claimed channels (tracery + steering,
+  // after three-particles / procedural-snake), CP-01 behaves like a serial
+  // canal lock (admit → fill → release, after Floaty's gate ideas), and landed
+  // merges deposit rings that drift downstream and fade with age. No external
+  // renderer: the fallback is the SVG sheet itself, which stays complete.
+  var CHAMBER = { x: CONFLUENCE.x, y: CONFLUENCE.y, r: 40 };
+  var APPROACH = makePath(sampleCubic([260, 460], [370, 470], [480, 440], [567, 422], 40));
+  var TAU = Math.PI * 2;
+  var YARD = { x: 62, y: 292, w: 178, cols: 3, cell: 27, head: 40, box: 14 };
+  var yardPos = function (i) {
     return {
-      em: e, dist: start, dir: 1,
-      speed: e.speed * (0.78 + Math.random() * 0.5),
-      wobble: e.wobble * (0.6 + Math.random() * 0.8),
-      freq: e.freq * (0.7 + Math.random() * 0.8),
-      phase: Math.random() * 6.283,
-      size: e.size * (0.75 + Math.random() * 0.6),
-      alpha: e.alpha * (0.7 + Math.random() * 0.5)
+      x: YARD.x + 16 + (i % YARD.cols) * YARD.cell,
+      y: YARD.y + YARD.head + Math.floor(i / YARD.cols) * YARD.cell
     };
   };
-  var stepPlanFX = function (dt) {
-    flow.time += dt;
-    for (var ei = 0; ei < flow.emitters.length; ei++) {
-      var e = flow.emitters[ei];
-      e.acc += e.rate * dt;
-      while (e.acc >= 1) {
-        e.acc -= 1;
-        flow.particles.push(spawnFor(e));
-        if (flow.particles.length > 380) flow.particles.splice(0, flow.particles.length - 380);
-      }
-    }
-    var rapids = flow.data ? (flow.data.rapids || []) : [];
-    if (rapids.length) {
-      flow.burstAcc += rapids.length * 8 * dt;
-      while (flow.burstAcc >= 1 && flow.bursts.length < 120) {
-        flow.burstAcc -= 1;
-        var rp = rapids[Math.floor(Math.random() * rapids.length)];
-        flow.bursts.push({
-          x: rp.x + (Math.random() - 0.5) * 40, y: rp.y + (Math.random() - 0.5) * 26,
-          vx: (Math.random() - 0.5) * 55, vy: (Math.random() - 0.5) * 42 - 18,
-          life: 1, decay: 1.2 + Math.random() * 0.8, size: 3 + Math.random() * 3.5
-        });
-      }
-    }
-    for (var i = flow.particles.length - 1; i >= 0; i--) {
-      var p = flow.particles[i], path = p.em.path;
-      if (p.em.hold) {
-        p.dist += p.dir * p.speed * dt;
-        if (p.dist >= path.len) { p.dist = path.len; p.dir = -1; }
-        if (p.dist <= 0) { p.dist = 0; p.dir = 1; }
-      } else {
-        p.dist += p.speed * dt;
-        if (p.dist >= path.len) {
-          var nx = p.em.nextKey ? flow.byKey[p.em.nextKey] : null;
-          if (nx) {
-            p.em = nx;
-            p.dist = p.em.nextDist || 0;
-            p.speed = nx.speed * (0.8 + Math.random() * 0.45);
-          } else {
-            p.dist = 0;
-            p.speed = p.em.speed * (0.8 + Math.random() * 0.5);
-            p.phase = Math.random() * 6.283;
-          }
-        }
-      }
-    }
-    for (var b = flow.bursts.length - 1; b >= 0; b--) {
-      var bu = flow.bursts[b];
-      bu.x += bu.vx * dt; bu.y += bu.vy * dt;
-      bu.vx *= 0.985; bu.vy = bu.vy * 0.985 - 10 * dt;
-      bu.life -= bu.decay * dt;
-      if (bu.life <= 0) flow.bursts.splice(b, 1);
-    }
-    for (var r = flow.ripples.length - 1; r >= 0; r--) {
-      var rp2 = flow.ripples[r];
-      rp2.r += rp2.vr * dt;
-      rp2.a -= dt * 0.7;
-      if (rp2.a <= 0) flow.ripples.splice(r, 1);
+  var YARD_ROWS = 4;
+  var YARD_CAP = YARD.cols * YARD_ROWS;
+  var YARD_H = YARD.head + YARD_ROWS * YARD.cell + 10;
+
+  var flow = {
+    data: null, prevStatus: {}, prevMerges: -1,
+    tracers: {}, rings: [], bursts: [],
+    gate: { up: 0, dn: 0, fill: 0 }, chamberColor: '#9a6a1f',
+    hover: null, hoverTask: null, view: null,
+    time: 0, raf: null, last: 0, w: 0, h: 0, dpr: 1
+  };
+
+  var spawnBurst = function (x, y, n) {
+    for (var i = 0; i < n; i++) {
+      flow.bursts.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 130, vy: (Math.random() - 0.5) * 100 - 20,
+        life: 1, decay: 1.1 + Math.random() * 0.9, size: 2 + Math.random() * 2.6
+      });
     }
   };
-  var drawPlanFX = function () {
+
+  var flowSetState = function (fd) {
+    flow.data = fd;
+    var m = fd.merges || 0;
+    if (flow.prevMerges < 0) {
+      for (var i = 0; i < Math.min(m, 8); i++) {
+        flow.rings.push({ u: 0.12 + i * 0.1, age: 3 + i * 5, rev: m - i });
+      }
+    } else if (m > flow.prevMerges) {
+      for (var j = flow.prevMerges + 1; j <= m; j++) {
+        flow.rings.push({ u: 0.03, age: 0, rev: j });
+      }
+      if (flow.rings.length > 14) flow.rings.splice(0, flow.rings.length - 14);
+    } else if (m < flow.prevMerges) {
+      flow.rings = [];
+    }
+    flow.prevMerges = m;
+
+    var seen = {};
+    (fd.tasks || []).forEach(function (t) {
+      seen[t.id] = true;
+      var prev = flow.prevStatus[t.id];
+      var term = ['landed', 'rejected', 'failed'].indexOf(t.status) !== -1;
+      if (prev && term && prev !== t.status) {
+        if (t.status === 'rejected' || t.status === 'failed') {
+          var rp = (fd.rapids && fd.rapids.length) ? fd.rapids[0] : CHAMBER;
+          spawnBurst(rp.x, rp.y - 14, 16);
+        }
+        var tr = flow.tracers[t.id];
+        if (tr) tr.dying = 0.001;
+      }
+      flow.prevStatus[t.id] = t.status;
+    });
+    Object.keys(flow.prevStatus).forEach(function (id) {
+      if (!seen[id]) delete flow.prevStatus[id];
+    });
+  };
+
+  var claimFor = function (agentId) {
+    var d = flow.data;
+    if (!d) return null;
+    for (var i = 0; i < d.claims.length; i++) {
+      if (d.claims[i].agentId === agentId) return d.claims[i];
+    }
+    return null;
+  };
+  var ensureTracer = function (id) {
+    var tr = flow.tracers[id];
+    if (!tr) {
+      tr = { id: id, dist: Math.random() * 36, ang: Math.random() * TAU, alpha: 0, dying: 0, kind: null, color: '#2c5f8a', path: null, speed: 90 };
+      flow.tracers[id] = tr;
+    }
+    return tr;
+  };
+
+  var stepFlow = function (dt) {
+    var d = flow.data;
+    flow.time += dt;
+    if (!d || !d.trunk) return;
+    var tasks = d.tasks || [];
+    var queued = [], chamber = null, exiting = null, patrolling = [];
+    tasks.forEach(function (t) {
+      if (['landed', 'rejected', 'failed'].indexOf(t.status) !== -1) return;
+      if (t.status === 'queued') queued.push(t);
+      else if (t.status === 'resolving') chamber = chamber || t;
+      else if (t.status === 'merging') exiting = exiting || t;
+      else patrolling.push(t);
+    });
+
+    var head = queued[0] || null;
+    var headTr = head ? ensureTracer(head.id) : null;
+    var headIn = !!(headTr && headTr.dist >= APPROACH.len - 6);
+    var occupant = chamber || (headIn ? head : null);
+    var upT = (queued.length && !occupant && !exiting) ? 1 : 0;
+    var dnT = exiting ? 1 : 0;
+
+    patrolling.forEach(function (t) {
+      var tr = ensureTracer(t.id);
+      var c = claimFor(t.agentId);
+      tr.kind = 'patrol';
+      tr.path = c ? c.path : APPROACH;
+      tr.color = c ? c.color : '#2c5f8a';
+      tr.speed = t.status === 'planning' ? 55 : t.status === 'claiming' ? 85 : 115;
+      tr.dist += tr.speed * dt;
+      if (tr.dist > tr.path.len) tr.dist = 0;
+      tr.alpha += (1 - tr.alpha) * Math.min(1, dt * 3);
+    });
+
+    var line = queued.filter(function (t) { return t !== occupant; });
+    line.forEach(function (t, j) {
+      var tr = ensureTracer(t.id);
+      tr.kind = 'hold';
+      tr.color = '#9a6a1f';
+      tr.path = APPROACH;
+      var target = APPROACH.len * (1 - 0.06 - j * 0.13);
+      if (target < 16) target = 16;
+      tr.dist += (target - tr.dist) * Math.min(1, dt * 2.2);
+      tr.alpha += (0.95 - tr.alpha) * Math.min(1, dt * 3);
+    });
+
+    if (occupant) {
+      var tro = ensureTracer(occupant.id);
+      tro.kind = 'swirl';
+      tro.color = occupant === chamber ? '#c8402a' : '#9a6a1f';
+      tro.ang += dt * (occupant === chamber ? 2.1 : 1.2);
+      tro.alpha += (1 - tro.alpha) * Math.min(1, dt * 3);
+      flow.chamberColor = occupant === chamber ? '#c8402a' : '#9a6a1f';
+    }
+    if (exiting) {
+      var tre = ensureTracer(exiting.id);
+      if (tre.kind !== 'run') { tre.kind = 'run'; tre.dist = 0; }
+      tre.color = '#2f6b4f';
+      tre.path = d.trunk;
+      tre.dist += 245 * dt;
+      tre.alpha += (1 - tre.alpha) * Math.min(1, dt * 3);
+      if (tre.dist > d.trunk.len) tre.dying = 0.001;
+      flow.chamberColor = '#2f6b4f';
+    }
+
+    var g = flow.gate;
+    g.up += (upT - g.up) * Math.min(1, dt * 2.4);
+    g.dn += (dnT - g.dn) * Math.min(1, dt * 2.4);
+    var fillT = (occupant || exiting) ? 1 : 0;
+    g.fill += (fillT - g.fill) * Math.min(1, dt * 1.8);
+
+    for (var ri = flow.rings.length - 1; ri >= 0; ri--) {
+      var ring = flow.rings[ri];
+      ring.u += dt * 0.012;
+      ring.age += dt;
+      if (ring.u > 0.98 || ring.age > 46) flow.rings.splice(ri, 1);
+    }
+    for (var bi = flow.bursts.length - 1; bi >= 0; bi--) {
+      var b = flow.bursts[bi];
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      b.vx *= 0.985; b.vy = b.vy * 0.985 - 10 * dt;
+      b.life -= b.decay * dt;
+      if (b.life <= 0) flow.bursts.splice(bi, 1);
+    }
+
+    var live = {};
+    tasks.forEach(function (t) { live[t.id] = true; });
+    Object.keys(flow.tracers).forEach(function (id) {
+      var tr = flow.tracers[id];
+      if (tr.dying) {
+        tr.dying += dt;
+        tr.alpha -= dt * 1.6;
+        if (tr.alpha <= 0 || tr.dying > 1.6) delete flow.tracers[id];
+        return;
+      }
+      if (!live[id]) delete flow.tracers[id];
+    });
+  };
+
+  var tracerPos = function (tr) {
+    if (tr.kind === 'swirl') {
+      return { x: CHAMBER.x + Math.cos(tr.ang) * 16, y: CHAMBER.y + Math.sin(tr.ang) * 12 };
+    }
+    var path = tr.path || APPROACH;
+    return pointAt(path, Math.max(0, Math.min(path.len, tr.dist)));
+  };
+  var pickFlow = function (mx, my) {
+    var d = flow.data;
+    if (!d || !d.trunk) return null;
+    var best = null, bestD = 14;
+    Object.keys(flow.tracers).forEach(function (id) {
+      var tr = flow.tracers[id];
+      if (tr.alpha < 0.15) return;
+      var pos = tracerPos(tr);
+      var dd = Math.hypot(pos.x - mx, pos.y - my);
+      if (dd < bestD) { bestD = dd; best = { kind: 'tracer', id: id, x: pos.x, y: pos.y }; }
+    });
+    if (best) return best;
+    for (var r = 0; r < flow.rings.length; r++) {
+      var ring = flow.rings[r];
+      var pt = pointAt(d.trunk, d.trunk.len * ring.u);
+      if (Math.hypot(pt.x - mx, pt.y - my) < 11) return { kind: 'ring', x: pt.x, y: pt.y, rev: ring.rev };
+    }
+    var bd = 9, res = null;
+    for (var w = 0; w < (d.waitlist || []).length; w++) {
+      var a = d.waitlist[w].anchor;
+      if (mx >= a.x - 4 && mx <= a.x + YARD.box + 4 && my >= a.y - 4 && my <= a.y + YARD.box + 4)
+        return { kind: 'staged', x: a.x + YARD.box / 2, y: a.y + YARD.box / 2, agentId: d.waitlist[w].agentId, files: d.waitlist[w].files };
+    }
+    (d.claims || []).forEach(function (c) {
+      for (var i = 0; i < c.path.pts.length; i += 3) {
+        var p = c.path.pts[i];
+        if (Math.hypot(p[0] - mx, p[1] - my) < bd) {
+          bd = Math.hypot(p[0] - mx, p[1] - my);
+          res = { kind: 'claim', x: mx, y: my, agentId: c.agentId, files: c.files };
+        }
+      }
+    });
+    return res;
+  };
+  var traceLine = function (ctx, path, style, width, dash, offset, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = style;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.lineDashOffset = offset;
+    ctx.beginPath();
+    ctx.moveTo(path.pts[0][0], path.pts[0][1]);
+    for (var i = 1; i < path.pts.length; i++) ctx.lineTo(path.pts[i][0], path.pts[i][1]);
+    ctx.stroke();
+    ctx.restore();
+  };
+  var drawGate = function (ctx, x, y, a, rot) {
+    var ang = a + rot;
+    var nx = Math.cos(ang) * 14, ny = Math.sin(ang) * 14;
+    ctx.save();
+    ctx.strokeStyle = '#10233f';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    ctx.moveTo(x - nx, y - ny);
+    ctx.lineTo(x + nx, y + ny);
+    ctx.stroke();
+    ctx.fillStyle = '#10233f';
+    ctx.beginPath();
+    ctx.arc(x + nx, y + ny, 2.6, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  var drawFlow = function () {
     var cvs = $('planFX');
     if (!cvs) return;
+    var d = flow.data;
     var ctx = cvs.getContext('2d');
     resizePlanFX();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cvs.width, cvs.height);
+    if (!d || !d.trunk) return;
     var w = flow.w || 1, h = flow.h || 1;
     var scale = Math.min(w / W, h / H);
     var ox = (w - W * scale) / 2, oy = (h - H * scale) / 2;
+    flow.view = { scale: scale, ox: ox, oy: oy };
     ctx.setTransform(flow.dpr * scale, 0, 0, flow.dpr * scale, flow.dpr * ox, flow.dpr * oy);
-    ctx.globalCompositeOperation = 'source-over';
-    for (var r = 0; r < flow.ripples.length; r++) {
-      var rp = flow.ripples[r];
-      ctx.globalAlpha = Math.max(0, rp.a);
-      ctx.strokeStyle = rp.color;
+    ctx.lineCap = 'round';
+
+    var dashOff = -flow.time * 70;
+    (d.claims || []).forEach(function (c) {
+      traceLine(ctx, c.path, c.color, 1.6, [2, 14], dashOff * 0.8, 0.55);
+    });
+    if ((d.waitlist || []).length) {
+      ctx.save();
+      ctx.strokeStyle = '#9a6a1f';
       ctx.lineWidth = 1.4;
+      ctx.globalAlpha = 0.55;
+      ctx.setLineDash([2, 9]);
+      ctx.lineDashOffset = dashOff * 0.35;
       ctx.beginPath();
-      ctx.arc(rp.x, rp.y, rp.r, 0, 6.2832);
+      ctx.moveTo(YARD.x + YARD.w, YARD.y + YARD_H - 14);
+      ctx.bezierCurveTo(YARD.x + YARD.w + 40, YARD.y + YARD_H + 6, 210, 452, 258, 459);
       ctx.stroke();
+      ctx.restore();
+      var head = d.waitlist[0].anchor;
+      ctx.globalAlpha = 0.2 + 0.22 * (0.5 + 0.5 * Math.sin(flow.time * 2.2));
+      ctx.fillStyle = '#9a6a1f';
+      ctx.fillRect(head.x, head.y, YARD.box, YARD.box);
+      ctx.globalAlpha = 1;
     }
-    for (var b = 0; b < flow.bursts.length; b++) {
-      var bu = flow.bursts[b];
-      ctx.globalAlpha = Math.max(0, bu.life) * 0.8;
-      var bs = bu.size * 3;
-      ctx.drawImage(makeSprite('#c8402a'), bu.x - bs / 2, bu.y - bs / 2, bs, bs);
-    }
-    for (var i = 0; i < flow.particles.length; i++) {
-      var p = flow.particles[i], path = p.em.path;
-      var pt = pointAt(path, p.dist);
-      var nx = -Math.sin(pt.a), ny = Math.cos(pt.a);
-      var off = Math.sin(flow.time * p.freq + p.phase) * p.wobble;
-      var x = pt.x + nx * off, y = pt.y + ny * off + Math.sin(flow.time * 0.8 + p.phase) * 1.2;
-      var fade = 1;
-      if (!p.em.hold) {
-        if (p.dist < 8) fade = p.dist / 8;
-        else if (p.dist > path.len - 10) fade = Math.max(0, (path.len - p.dist) / 10);
+    traceLine(ctx, APPROACH, '#10233f', 1.4, [4, 10], dashOff, 0.45);
+    var trunkColor = d.trunkRed ? '#c8402a' : '#2c5f8a';
+    traceLine(ctx, d.trunk, trunkColor, 2.2, [5, 18], dashOff * 1.6, 0.5);
+
+    flow.rings.forEach(function (ring) {
+      var pt = pointAt(d.trunk, d.trunk.len * ring.u);
+      var a = Math.max(0, 1 - ring.age / 46) * Math.min(1, ring.u / 0.06) * Math.min(1, (1 - ring.u) / 0.04);
+      if (a <= 0.02) return;
+      ctx.globalAlpha = a * 0.85;
+      ctx.strokeStyle = '#2f6b4f';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 8, 0, TAU);
+      ctx.stroke();
+      ctx.fillStyle = '#2f6b4f';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 2, 0, TAU);
+      ctx.fill();
+      if (ring.age < 9) {
+        ctx.globalAlpha = Math.min(1, (9 - ring.age) / 3) * a;
+        ctx.font = '600 11px "IBM Plex Mono", ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('REV ' + ring.rev, pt.x + 11, pt.y - 5);
       }
-      ctx.globalAlpha = Math.max(0, p.alpha * fade);
-      var s = p.size * 2.2 * (0.85 + 0.25 * Math.sin(flow.time * 3 + p.phase));
-      ctx.drawImage(makeSprite(p.em.color), x - s / 2, y - s / 2, s, s);
-    }
+    });
     ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
+
+    var g = flow.gate;
+    if (g.fill > 0.02) {
+      ctx.strokeStyle = flow.chamberColor;
+      ctx.lineWidth = 5;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.arc(CHAMBER.x, CHAMBER.y, 32, -Math.PI / 2, -Math.PI / 2 + TAU * g.fill);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    var gateU = pointAt(APPROACH, APPROACH.len - 2);
+    drawGate(ctx, gateU.x, gateU.y, gateU.a + Math.PI / 2, -g.up * 1.35);
+    var gateD = pointAt(d.trunk, 32);
+    drawGate(ctx, gateD.x, gateD.y, gateD.a + Math.PI / 2, g.dn * 1.35);
+
+    Object.keys(flow.tracers).forEach(function (id) {
+      var tr = flow.tracers[id];
+      if (tr.alpha <= 0.02) return;
+      var path = tr.path || APPROACH;
+      var pos = tracerPos(tr);
+      var hot = (flow.hover && flow.hover.kind === 'tracer' && flow.hover.id === id) || flow.hoverTask === id;
+      if (hot) {
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = '#10233f';
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([3, 3]);
+        ctx.lineDashOffset = -flow.time * 20;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 12, 0, TAU);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (tr.kind === 'patrol' || tr.kind === 'run') {
+        for (var k = 6; k >= 1; k--) {
+          var td = tr.dist - k * 9;
+          if (td < 4) continue;
+          var tp = pointAt(path, td);
+          ctx.globalAlpha = tr.alpha * (0.5 - k * 0.07);
+          ctx.fillStyle = tr.color;
+          ctx.beginPath();
+          ctx.arc(tp.x, tp.y, Math.max(0.6, 3.4 - k * 0.45), 0, TAU);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = tr.alpha;
+      if (tr.kind === 'hold') {
+        var bob = Math.sin(flow.time * 1.8 + tr.dist) * 2.2;
+        ctx.fillStyle = '#f5efe2';
+        ctx.strokeStyle = tr.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y + bob, 5, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = tr.color;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y + bob, 1.8, 0, TAU);
+        ctx.fill();
+      } else if (tr.kind === 'swirl') {
+        ctx.strokeStyle = tr.color;
+        ctx.lineWidth = 1.6;
+        ctx.globalAlpha = tr.alpha * (0.45 + 0.45 * Math.abs(Math.sin(flow.time * 5)));
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 9 + Math.sin(flow.time * 3) * 2, 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = tr.alpha;
+        ctx.fillStyle = tr.color;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 3.4, 0, TAU);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = tr.color;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 3.8, 0, TAU);
+        ctx.fill();
+        ctx.globalAlpha = tr.alpha * 0.85;
+        ctx.fillStyle = '#f5efe2';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 1.5, 0, TAU);
+        ctx.fill();
+      }
+    });
+    ctx.globalAlpha = 1;
+
+    (d.rapids || []).forEach(function (rp, i) {
+      ctx.strokeStyle = '#c8402a';
+      ctx.lineWidth = 1.6;
+      for (var s2 = 0; s2 < 3; s2++) {
+        var ph = flow.time * (2.4 + s2 * 0.7) + i * 2.1 + s2;
+        ctx.globalAlpha = 0.25 + 0.3 * Math.abs(Math.sin(ph));
+        ctx.beginPath();
+        ctx.arc(rp.x + Math.cos(ph * 1.7) * 10, rp.y + Math.sin(ph) * 6, 3.2 + 2 * Math.sin(ph * 2.3), 0, TAU);
+        ctx.stroke();
+      }
+    });
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = '#c8402a';
+    flow.bursts.forEach(function (b) {
+      ctx.globalAlpha = Math.max(0, b.life) * 0.85;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.size * Math.max(0.3, b.life), 0, TAU);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    var hv = flow.hover;
+    if (hv) {
+      var label = '';
+      if (hv.kind === 'tracer') {
+        var tk = (d.tasks || []).filter(function (x) { return x.id === hv.id; })[0];
+        if (tk) label = '#' + tk.idx + ' · ' + tk.status + ' · ' + tk.agentId;
+      } else if (hv.kind === 'ring') {
+        label = 'REV ' + hv.rev + ' · landed revision';
+      } else if (hv.kind === 'claim') {
+        label = hv.agentId + (hv.files ? ' · ' + hv.files + ' files claimed' : ' · claim');
+      } else if (hv.kind === 'staged') {
+        label = hv.agentId + ' · staged' + (hv.files ? ' · ' + hv.files + 'f' : '');
+      }
+      if (label) {
+        ctx.font = '600 12px "IBM Plex Mono", ui-monospace, monospace';
+        var tw = ctx.measureText(label).width;
+        var lx = Math.min(W - tw - 26, hv.x + 14), ly = Math.max(24, hv.y - 12);
+        ctx.fillStyle = 'rgba(245,239,226,0.95)';
+        ctx.strokeStyle = '#10233f';
+        ctx.lineWidth = 1;
+        ctx.fillRect(lx - 6, ly - 13, tw + 12, 20);
+        ctx.strokeRect(lx - 6, ly - 13, tw + 12, 20);
+        ctx.fillStyle = '#10233f';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(label, lx, ly + 2);
+      }
+    }
   };
+
   var resizePlanFX = function () {
     var cvs = $('planFX');
-    if (!cvs || !cvs.parentElement) return;
-    var parent = cvs.parentElement;
-    var w = parent.clientWidth, h = parent.clientHeight;
+    if (!cvs) return;
+    var w = cvs.clientWidth, h = cvs.clientHeight;
+    if (!w || !h) return;
     var dpr = Math.min(2, window.devicePixelRatio || 1);
     if (w !== flow.w || h !== flow.h || dpr !== flow.dpr) {
       flow.w = w; flow.h = h; flow.dpr = dpr;
       cvs.width = Math.max(1, Math.round(w * dpr));
       cvs.height = Math.max(1, Math.round(h * dpr));
-      cvs.style.width = w + 'px';
-      cvs.style.height = h + 'px';
     }
   };
   var framePlanFX = function (ts) {
     var dt = Math.min(0.05, (ts - flow.last) / 1000 || 0.016);
     flow.last = ts;
-    stepPlanFX(dt);
-    drawPlanFX();
+    stepFlow(dt);
+    drawFlow();
     flow.raf = requestAnimationFrame(framePlanFX);
+  };
+  var syncLedgerHL = function () {
+    var host = $('tasks');
+    if (!host) return;
+    var want = flow.hover && flow.hover.kind === 'tracer' ? flow.hover.id : null;
+    host.querySelectorAll('.spec-row').forEach(function (el) {
+      var on = el.getAttribute('data-task') === want;
+      el.classList.toggle('hl', on);
+      if (on) el.scrollIntoView({ block: 'nearest' });
+    });
   };
   var initPlanFX = function () {
     var cvs = $('planFX');
     if (!cvs || !cvs.getContext || reducedMotion()) return;
     resizePlanFX();
-    if (window.ResizeObserver && cvs.parentElement) new ResizeObserver(resizePlanFX).observe(cvs.parentElement);
+    if (window.ResizeObserver) new ResizeObserver(resizePlanFX).observe(cvs);
     window.addEventListener('resize', resizePlanFX);
+    var toView = function (ev) {
+      if (!flow.view) return null;
+      var rect = cvs.getBoundingClientRect();
+      return {
+        x: (ev.clientX - rect.left - flow.view.ox) / flow.view.scale,
+        y: (ev.clientY - rect.top - flow.view.oy) / flow.view.scale
+      };
+    };
+    cvs.addEventListener('mousemove', function (ev) {
+      var m = toView(ev);
+      flow.hover = m ? pickFlow(m.x, m.y) : null;
+      cvs.style.cursor = flow.hover ? 'pointer' : '';
+      syncLedgerHL();
+    });
+    cvs.addEventListener('mouseleave', function () {
+      flow.hover = null;
+      cvs.style.cursor = '';
+      syncLedgerHL();
+    });
+    cvs.addEventListener('click', function (ev) {
+      if (flow.hover && flow.hover.kind === 'tracer') {
+        inkBlot(ev.clientX, ev.clientY, 'rgba(44,95,138,0.45)');
+        openDrawer(flow.hover.id);
+      }
+    });
     flow.last = performance.now();
     flow.raf = requestAnimationFrame(framePlanFX);
   };
 
-  // ---- merge simulation ------------------------------------------------------
-  // A lightweight Three.js viewport layered over the site-plan underlay. The
-  // SVG still owns parcels, labels, stamps, and evidence; this owns the moving
-  // watershed: emitters, queue turbulence, the serial gate, trunk current,
-  // deposits, and conflict bursts.
-  var sim = {
-    active: false, ready: false, THREE: null, canvas: null, renderer: null,
-    scene: null, camera: null, flowGroup: null, labelGroup: null,
-    rippleGroup: null, eddyGroup: null, points: null, pGeo: null,
-    pPos: null, pCol: null, pSize: null, pAlpha: null, emitters: [],
-    particles: [], ripples: [], eddies: [], fd: null, gatePath: null,
-    turb: 0, lastMerges: -1, raf: null, last: 0, time: 0, w: 0, h: 0,
-    dpr: 1, hw: W / 2, hh: H / 2, MAXP: 2400, prevStatus: {}
+  // ---- static sheet underlay --------------------------------------------------
+  var structSig = null;
+  var prevClaimIds = {};
+  var svgPathD = function (path) {
+    var s = 'M' + path.pts[0][0].toFixed(1) + ',' + path.pts[0][1].toFixed(1);
+    for (var i = 1; i < path.pts.length; i++) {
+      s += ' L' + path.pts[i][0].toFixed(1) + ',' + path.pts[i][1].toFixed(1);
+    }
+    return s;
   };
+  var gateBar = function (x, y, a) {
+    var nx = Math.cos(a) * 14, ny = Math.sin(a) * 14;
+    return '<path d="M' + (x - nx).toFixed(1) + ',' + (y - ny).toFixed(1) + ' L' + (x + nx).toFixed(1) + ',' + (y + ny).toFixed(1) +
+      '" stroke="var(--ink3)" stroke-width="4" stroke-linecap="round" opacity="0.9"/>';
+  };
+  var drawPlanStatic = function (fd, fresh) {
+    var layer = $('planLayer');
+    if (!layer) return;
+    var out = [];
+    var trunkD = svgPathD(fd.trunk);
+    var trunkW = 4.5 + Math.min(9, Math.log(1 + (fd.merges || 0)) * 2.4);
+    var trunkStroke = fd.trunkRed ? 'var(--red)' : null;
+    out.push('<path class="sp-channel-halo" stroke="' + (fd.trunkRed ? 'var(--red)' : 'var(--ink2)') + '" stroke-width="' + (trunkW + 9).toFixed(1) + '" d="' + trunkD + '"/>');
+    out.push('<path class="sp-trunk' + (fd.trunkRed ? ' red' : '') + '" stroke-width="' + trunkW.toFixed(1) + '"' + (trunkStroke ? ' stroke="' + trunkStroke + '"' : '') + ' d="' + trunkD + '"/>');
+    out.push('<path class="sp-trunk-core" d="' + trunkD + '"/>');
 
-  var simWorld = function (x, y) {
-    return { x: x - W / 2, y: H / 2 - y };
-  };
-  var simWorldV = function (p) {
-    var w = simWorld(p[0], p[1]);
-    return new sim.THREE.Vector3(w.x, w.y, 0);
-  };
-  var simHex = function (c) {
-    var n = parseInt(String(c).replace('#', ''), 16);
-    if (isNaN(n)) n = 0x22304a;
-    return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
-  };
-  var simDisposeObject = function (obj) {
-    obj.traverse(function (o) {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) {
-        var mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach(function (m) {
-          if (m.map) m.map.dispose();
-          if (m.dispose) m.dispose();
-        });
+    if (reducedMotion()) {
+      var ringCount = Math.min(8, fd.merges || 0);
+      for (var ri = 0; ri < ringCount; ri++) {
+        var rpt = pointAt(fd.trunk, fd.trunk.len * (0.12 + ri * 0.1));
+        out.push('<circle cx="' + rpt.x.toFixed(1) + '" cy="' + rpt.y.toFixed(1) + '" r="8" fill="none" stroke="var(--green)" stroke-width="2" opacity="' + (0.85 - ri * 0.09).toFixed(2) + '"/>');
+        out.push('<circle cx="' + rpt.x.toFixed(1) + '" cy="' + rpt.y.toFixed(1) + '" r="2" fill="var(--green)" opacity="' + (0.85 - ri * 0.09).toFixed(2) + '"/>');
       }
-    });
-  };
-  var simClearGroup = function (g) {
-    while (g && g.children.length) {
-      var c = g.children.pop();
-      simDisposeObject(c);
-      g.remove(c);
     }
-  };
-  var simLabelSprite = function (text, color) {
-    var T = sim.THREE;
-    var label = String(text || '').slice(0, 22);
-    var pad = 22, fs = 22, h = 46;
-    var cvs = document.createElement('canvas');
-    var ctx = cvs.getContext('2d');
-    ctx.font = '700 ' + fs + 'px "IBM Plex Mono", monospace';
-    var tw = Math.ceil(ctx.measureText(label).width);
-    cvs.width = Math.max(96, tw + pad * 2) * 2;
-    cvs.height = h * 2;
-    ctx = cvs.getContext('2d');
-    ctx.scale(2, 2);
-    ctx.font = '700 ' + fs + 'px "IBM Plex Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = color || '#22304a';
-    ctx.fillText(label, cvs.width / 4, h / 2);
-    var tex = new T.CanvasTexture(cvs);
-    tex.anisotropy = 2;
-    var mat = new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
-    var sp = new T.Sprite(mat);
-    sp.scale.set(cvs.width / 2, cvs.height / 2, 1);
-    sp.center.set(0.5, 0.5);
-    sp.renderOrder = 5;
-    return sp;
-  };
 
-  var simResize = function () {
-    var cvs = sim.canvas;
-    if (!cvs || !cvs.parentElement || !sim.renderer) return;
-    var w = cvs.clientWidth, h = cvs.clientHeight;
-    var dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (!w || !h) return;
-    sim.w = w; sim.h = h; sim.dpr = dpr;
-    sim.renderer.setPixelRatio(dpr);
-    sim.renderer.setSize(w, h, false);
-    var aspect = w / h, hw = W / 2, hh = H / 2;
-    if (aspect > W / H) { hh = H / 2; hw = hh * aspect; }
-    else { hw = W / 2; hh = hw / aspect; }
-    sim.hw = hw; sim.hh = hh;
-    sim.camera.left = -hw; sim.camera.right = hw;
-    sim.camera.top = hh; sim.camera.bottom = -hh;
-    sim.camera.updateProjectionMatrix();
-    if (sim.points && sim.points.material && sim.points.material.uniforms) {
-      sim.points.material.uniforms.uDpr.value = dpr;
-    }
-  };
+    var tip = pointAt(fd.trunk, fd.trunk.len - 2);
+    out.push('<path class="sp-arrow" transform="translate(' + tip.x.toFixed(1) + ',' + tip.y.toFixed(1) + ') rotate(' + (tip.a * 57.2958).toFixed(1) + ')" d="M-14,-7 L0,0 L-14,7"/>');
 
-  var simPathVectors = function (path) {
-    var pts = [];
-    for (var i = 0; i < path.pts.length; i++) pts.push(simWorldV(path.pts[i]));
-    return pts;
-  };
-  var simAddMesh = function (g, geo, color, opacity, x, y, sy) {
-    var T = sim.THREE;
-    var m = new T.Mesh(geo, new T.MeshBasicMaterial({
-      color: color, transparent: true, opacity: opacity,
-      side: T.DoubleSide, depthWrite: false
-    }));
-    m.position.set(x, y, 0);
-    if (sy) m.scale.set(1, sy, 1);
-    m.renderOrder = 2;
-    g.add(m);
-    return m;
-  };
-
-  var simAddLabel = function (text, color, x, y) {
-    var sp = simLabelSprite(text, color);
-    var w = simWorld(x, y);
-    sp.position.set(w.x, w.y, 0);
-    sim.labelGroup.add(sp);
-    return sp;
-  };
-
-  var simSyncFlow = function (fd) {
-    var T = sim.THREE;
-    simClearGroup(sim.flowGroup);
-    simClearGroup(sim.labelGroup);
-    simClearGroup(sim.rippleGroup);
-    simClearGroup(sim.eddyGroup);
-    sim.ripples = [];
-    sim.eddies = [];
-    sim.gateMat = null;
-    sim.gateCoreMat = null;
-    var cw = simWorld(fd.confluence.x, fd.confluence.y);
-
-    // confluence pool + CP-01 serial lock
-    var pool = simAddMesh(sim.flowGroup, new T.CircleGeometry(150, 80), 0x2c5f8a, 0.10, cw.x, cw.y, 0.62);
-    pool.renderOrder = 1;
-    simAddMesh(sim.flowGroup, new T.RingGeometry(96, 106, 80), 0x10233f, 0.35, cw.x, cw.y, 0.62);
-    simAddMesh(sim.flowGroup, new T.RingGeometry(58, 64, 72), 0x2c5f8a, 0.55, cw.x, cw.y, 0.62);
-    var gateRing = simAddMesh(sim.flowGroup, new T.RingGeometry(18, 27, 64), 0x10233f, 0.9, cw.x, cw.y, 1);
-    sim.gateMat = gateRing.material;
-    var gateCore = simAddMesh(sim.flowGroup, new T.CircleGeometry(8, 32), 0x10233f, 0.95, cw.x, cw.y, 1);
-    sim.gateCoreMat = gateCore.material;
-
-    // trunk current: water sheet + darker core + surveyed line
-    var trunkPts = simPathVectors(fd.trunk);
-    var trunkCurve = new T.CatmullRomCurve3(trunkPts);
-    var trunkColor = fd.trunkRed ? 0xc8402a : 0x2c5f8a;
-    var trunkOuter = new T.Mesh(new T.TubeGeometry(trunkCurve, 110, 20, 12, false), new T.MeshBasicMaterial({
-      color: trunkColor, transparent: true, opacity: fd.trunkRed ? 0.30 : 0.18, depthWrite: false
-    }));
-    trunkOuter.renderOrder = 2;
-    sim.flowGroup.add(trunkOuter);
-    var trunkCore = new T.Mesh(new T.TubeGeometry(trunkCurve, 110, 8, 10, false), new T.MeshBasicMaterial({
-      color: 0x10233f, transparent: true, opacity: fd.trunkRed ? 0.34 : 0.26, depthWrite: false
-    }));
-    trunkCore.renderOrder = 3;
-    sim.flowGroup.add(trunkCore);
-    var trunkLine = new T.Line(new T.BufferGeometry().setFromPoints(trunkPts), new T.LineBasicMaterial({
-      color: 0x10233f, transparent: true, opacity: 0.5
-    }));
-    trunkLine.renderOrder = 3;
-    sim.flowGroup.add(trunkLine);
-
-    // tributary inflows become tubes with emitter nodes, not SVG parcels
     fd.claims.forEach(function (c) {
-      var pts = simPathVectors(c.path);
-      var curve = new T.CatmullRomCurve3(pts);
-      var tube = new T.Mesh(new T.TubeGeometry(curve, Math.max(24, pts.length), 6, 8, false), new T.MeshBasicMaterial({
-        color: new T.Color(c.color), transparent: true, opacity: 0.24, depthWrite: false
-      }));
-      tube.renderOrder = 2;
-      sim.flowGroup.add(tube);
-      var start = pts[0];
-      simAddMesh(sim.flowGroup, new T.RingGeometry(10, 15, 40), new T.Color(c.color), 0.9, start.x, start.y, 1);
-      simAddMesh(sim.flowGroup, new T.CircleGeometry(3.5, 20), 0x10233f, 0.9, start.x, start.y, 1);
-      simAddLabel(c.agentId + (c.files ? ' · ' + c.files + 'f' : ''), c.color, c.anchor.x, c.anchor.y - 42);
+      var grow = fresh[c.agentId] ? ' sp-grow' : '';
+      var cd = svgPathD(c.path);
+      out.push('<path class="sp-channel-halo' + grow + '" pathLength="100" stroke="' + c.color + '" stroke-width="9" d="' + cd + '"/>');
+      out.push('<path class="sp-channel' + grow + '" pathLength="100" stroke="' + c.color + '" stroke-width="2.4" d="' + cd + '"/>');
+      out.push('<rect x="' + (c.anchor.x - 8) + '" y="' + (c.anchor.y - 8) + '" width="16" height="16" fill="none" stroke="' + c.color + '" stroke-width="1.6"/>');
+      out.push('<text class="sp-label" x="' + c.anchor.x + '" y="' + (c.anchor.y - 16) + '" text-anchor="middle" style="fill:' + c.color + '">' + esc(c.agentId) + (c.files ? ' · ' + c.files + 'f' : '') + '</text>');
     });
 
-    // staged reach is a held pool, not a parcel table
-    simAddLabel('STAGED · WAITLIST', '#9a6a1f', 112, 102);
-    fd.waitlist.forEach(function (w) {
-      var pts = simPathVectors(w.path);
-      var line = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({
-        color: 0x9a6a1f, transparent: true, opacity: 0.6, dashSize: 6, gapSize: 5
-      }));
-      line.computeLineDistances();
-      line.renderOrder = 3;
-      sim.flowGroup.add(line);
-      var start = pts[0];
-      simAddMesh(sim.flowGroup, new T.CircleGeometry(5, 18), 0x9a6a1f, 0.85, start.x, start.y, 1);
-      simAddLabel(w.agentId, '#9a6a1f', w.anchor.x, w.anchor.y - 26);
-    });
-    if (!fd.waitlist.length) simAddLabel('NO STAGED WORK', '#9a6a1f', 112, 142);
-
-    // rapids become pulsing eddies in the particle field
-    fd.rapids.forEach(function (rp, i) {
-      var w = simWorld(rp.x, rp.y);
-      var mesh = simAddMesh(sim.eddyGroup, new T.RingGeometry(13, 19, 48), 0xc8402a, 0.5, w.x, w.y, 0.62);
-      sim.eddies.push({ mesh: mesh, phase: i * 1.37 });
-    });
-
-    // readable queue labels near the gate
-    var inflight = (fd.tasks || []).filter(function (t) {
-      return ['landed', 'rejected', 'failed'].indexOf(t.status) === -1;
-    }).slice(0, 8);
-    inflight.forEach(function (t, i) {
-      var x = fd.confluence.x - 150 + (i % 4) * 36;
-      var y = fd.confluence.y - 148 - Math.floor(i / 4) * 32;
-      var color = t.status === 'merging' ? '#2f6b4f' : t.status === 'resolving' ? '#c8402a' : '#9a6a1f';
-      simAddLabel(String(t.idx).padStart(2, '0') + ' ' + t.status, color, x, y);
-    });
-
-    // key river labels live in the same canvas, not the SVG layer
-    simAddLabel('CONFLUENCE', '#10233f', fd.confluence.x, fd.confluence.y - 132);
-    simAddLabel('CP-01 · SERIAL MERGE QUEUE', '#2c5f8a', fd.confluence.x, fd.confluence.y - 112);
-    simAddLabel('VERIFIED REVISIONS ONLY', '#2f6b4f', fd.confluence.x, fd.confluence.y + 128);
-    simAddLabel('AS-BUILT TRUNK', '#10233f', fd.outflow.x - 128, fd.outflow.y - 52);
-    if (fd.rapids.length) simAddLabel('RAPIDS · RESIDUAL CONFLICTS', '#c8402a', fd.rapids[0].x + 34, fd.rapids[0].y - 62);
-
-    // revision evidence becomes canvas markers along the current
-    var landed = (fd.tasks || []).filter(function (t) { return t.status === 'landed'; }).slice(0, 10);
-    landed.forEach(function (t, i) {
-      var pt = pointAt(fd.trunk, fd.trunk.len * (0.14 + i * 0.07));
-      simAddLabel('OK', '#2f6b4f', pt.x, pt.y - 26);
-    });
-    var rejected = (fd.tasks || []).filter(function (t) { return t.status === 'rejected' || t.status === 'failed'; }).slice(0, 8);
-    rejected.forEach(function (t, i) {
-      var rp = fd.rapids.length ? fd.rapids[i % fd.rapids.length] : fd.confluence;
-      simAddLabel('×', '#c8402a', rp.x + 18 + (i % 3) * 16, rp.y - 36);
-    });
-
-    sim.gatePath = makePath(sampleCubic(
-      [fd.confluence.x - 150, fd.confluence.y - 42],
-      [fd.confluence.x - 84, fd.confluence.y - 96],
-      [fd.confluence.x - 28, fd.confluence.y - 74],
-      [fd.confluence.x, fd.confluence.y], 30
-    ));
-  };
-
-  var simClaimPathFor = function (fd, agentId) {
-    for (var i = 0; i < fd.claims.length; i++) {
-      if (fd.claims[i].agentId === agentId) return fd.claims[i].path;
-    }
-    return null;
-  };
-  var simTaskSpec = function (fd, t) {
-    var status = t.status || 'working';
-    var path = simClaimPathFor(fd, t.agentId);
-    var hold = false, speed = 120, color = '#2c5f8a', wobble = 5, freq = 1.7, rate = 8;
-    if (status === 'queued' || status === 'resolving') {
-      path = sim.gatePath; hold = true; speed = status === 'resolving' ? 42 : 18;
-      color = status === 'resolving' ? '#c8402a' : '#9a6a1f'; wobble = 9; freq = 2.6; rate = 7;
-    } else if (status === 'merging') {
-      path = fd.trunk; hold = false; speed = 230; color = '#2f6b4f'; wobble = 4; freq = 2.2; rate = 11;
-    } else if (status === 'working' || status === 'planning' || status === 'claiming') {
-      if (!path) { path = sim.gatePath; hold = false; speed = 70; }
-      color = '#2c5f8a'; speed = status === 'planning' ? 70 : 125; wobble = 6; freq = 1.8; rate = 8;
-    }
-    return { path: path, hold: hold, speed: speed, color: color, wobble: wobble, freq: freq, rate: rate, nextPath: hold ? null : fd.trunk };
-  };
-  var simSyncEmitters = function (fd) {
-    sim.emitters = [];
-    sim.emitters.push({ key: 'trunk', path: fd.trunk, rate: Math.min(46, 22 + fd.claims.length * 3 + fd.merges), color: '#22304a', size: 5, alpha: 0.46, speed: 150, wobble: 4, freq: 1.1, phase: 0.4, hold: false, nextPath: null });
-    fd.claims.forEach(function (c, i) {
-      sim.emitters.push({ key: 'claim:' + c.agentId, path: c.path, rate: 7 + (i % 3), color: c.color, size: 6, alpha: 0.9, speed: 175, wobble: 7, freq: 1.6 + i * 0.11, phase: i * 0.7, hold: false, nextPath: fd.trunk });
-    });
-    fd.waitlist.forEach(function (w, i) {
-      sim.emitters.push({ key: 'wait:' + w.agentId, path: w.path, rate: 2.5, color: '#9a6a1f', size: 5, alpha: 0.66, speed: 46, wobble: 3, freq: 2.1, phase: i * 0.9, hold: true, nextPath: null });
-    });
-    (fd.tasks || []).forEach(function (t) {
-      if (['landed', 'rejected', 'failed'].indexOf(t.status) !== -1) return;
-      var spec = simTaskSpec(fd, t);
-      if (!spec.path) return;
-      sim.emitters.push({ key: 'task:' + t.id, path: spec.path, rate: spec.rate, color: spec.color, size: 7, alpha: 0.95, speed: spec.speed, wobble: spec.wobble, freq: spec.freq, phase: (t.idx || 1) * 0.53, hold: spec.hold, nextPath: spec.nextPath });
-    });
-  };
-
-  var simAddRipple = function (x, y, color) {
-    var T = sim.THREE, w = simWorld(x, y);
-    var mesh = new T.Mesh(new T.RingGeometry(0.82, 1, 56), new T.MeshBasicMaterial({
-      color: color || 0x2c5f8a, transparent: true, opacity: 0.75,
-      side: T.DoubleSide, depthWrite: false
-    }));
-    mesh.position.set(w.x, w.y, 0);
-    mesh.renderOrder = 4;
-    sim.rippleGroup.add(mesh);
-    sim.ripples.push({ mesh: mesh, r: 10, vr: 78, a: 0.75 });
-  };
-  var simSpawnBurstAt = function (x, y, n, color) {
-    for (var i = 0; i < n; i++) {
-      sim.particles.push({
-        mode: 'burst', x: x, y: y,
-        vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 95 - 18,
-        life: 0.75 + Math.random() * 0.55, decay: 1.05 + Math.random() * 0.85,
-        size: 4 + Math.random() * 5, rgb: simHex(color || '#c8402a'), alpha: 0.9
+    out.push('<rect x="' + YARD.x + '" y="' + YARD.y + '" width="' + YARD.w + '" height="' + YARD_H + '" fill="none" stroke="var(--ink3)" stroke-width="1.4" opacity="0.75"/>');
+    out.push('<rect x="' + (YARD.x + 4) + '" y="' + (YARD.y + 4) + '" width="' + (YARD.w - 8) + '" height="' + (YARD_H - 8) + '" fill="none" stroke="var(--ink3)" stroke-width="0.8" opacity="0.35"/>');
+    out.push('<text class="sp-label strong" x="' + (YARD.x + 14) + '" y="' + (YARD.y + 22) + '" style="fill:var(--amber)">Staged · CP-01 queue</text>');
+    if (fd.waitlist.length) {
+      fd.waitlist.forEach(function (wt, i) {
+        var p = wt.anchor;
+        out.push('<rect x="' + p.x + '" y="' + p.y + '" width="' + YARD.box + '" height="' + YARD.box + '" fill="none" stroke="var(--amber)" stroke-width="1.6" opacity="' + (0.95 - i * 0.045).toFixed(2) + '"/>');
       });
+      if (fd.stagedMore) {
+        out.push('<text class="sp-label" x="' + (YARD.x + 14) + '" y="' + (YARD.y + YARD_H - 8) + '" style="fill:var(--amber)">+' + fd.stagedMore + ' more</text>');
+      }
+    } else {
+      out.push('<text class="sp-label" x="' + (YARD.x + 14) + '" y="' + (YARD.y + YARD.head + 22) + '" style="fill:var(--amber)" opacity="0.5">No staged work</text>');
     }
-  };
-  var simSpawnDeposit = function (fd) {
-    for (var i = 0; i < 22; i++) {
-      sim.particles.push({
-        mode: 'flow', path: fd.trunk, dist: Math.random() * fd.trunk.len * 0.55,
-        dir: 1, speed: 190 + Math.random() * 90, wobble: 3.5,
-        freq: 1.4 + Math.random() * 0.5, phase: Math.random() * 6.28,
-        size: 6, rgb: simHex(i % 3 ? '#2f6b4f' : '#22304a'), alpha: 0.86,
-        hold: false, nextPath: null, nextDist: 0, life: 1, decay: 0
+    out.push('<path class="sp-staged" d="M' + (YARD.x + YARD.w) + ',' + (YARD.y + YARD_H - 14) + ' C' + (YARD.x + YARD.w + 40) + ',' + (YARD.y + YARD_H + 6) + ' ' + 210 + ',452 258,459"/>');
+
+    if (fd.claimsMore) {
+      out.push('<text class="sp-label" x="860" y="132" style="fill:var(--ink2)">+' + fd.claimsMore + ' more claims held</text>');
+    }
+    out.push('<path class="sp-pending" d="' + svgPathD(APPROACH) + '"/>');
+    out.push('<circle class="sp-cp" cx="' + CHAMBER.x + '" cy="' + CHAMBER.y + '" r="40"/>');
+    out.push('<circle class="sp-basin-inner" cx="' + CHAMBER.x + '" cy="' + CHAMBER.y + '" r="27"/>');
+    var gateUS = pointAt(APPROACH, APPROACH.len - 2);
+    out.push(gateBar(gateUS.x, gateUS.y, gateUS.a + Math.PI / 2));
+    var gateDS = pointAt(fd.trunk, 32);
+    out.push(gateBar(gateDS.x, gateDS.y, gateDS.a + Math.PI / 2));
+
+    out.push('<text class="sp-label strong" x="' + CHAMBER.x + '" y="' + (CHAMBER.y - 56) + '" text-anchor="middle">CP-01 · Serial Lock</text>');
+    out.push('<text class="sp-label" x="' + CHAMBER.x + '" y="' + (CHAMBER.y + 80) + '" text-anchor="middle" style="fill:var(--green)">Verified revisions only</text>');
+    out.push('<text class="sp-label strong" x="' + (fd.outflow.x - 250) + '" y="' + (fd.outflow.y - 30) + '">As-built trunk</text>');
+
+    if (fd.rapids.length) {
+      fd.rapids.forEach(function (rp) {
+        out.push('<path class="sp-cloud" d="M' + (rp.x - 16).toFixed(1) + ',' + rp.y.toFixed(1) + ' l 8,-8 l 8,8 l 8,-8"/>');
       });
-    }
-    simAddRipple(fd.confluence.x, fd.confluence.y, 0x2c5f8a);
-    simAddRipple(fd.outflow.x, fd.outflow.y, 0x2f6b4f);
-  };
-  var simSyncTasks = function (fd) {
-    var seen = {};
-    (fd.tasks || []).forEach(function (t) {
-      seen[t.id] = t.status;
-      var prev = sim.prevStatus[t.id];
-      var terminal = ['landed', 'rejected', 'failed'].indexOf(t.status) !== -1;
-      if (prev && terminal && ['landed', 'rejected', 'failed'].indexOf(prev) === -1) {
-        if (prev !== t.status) {
-          if (t.status === 'landed') simSpawnDeposit(fd);
-          if (t.status === 'rejected' || t.status === 'failed') {
-            var rp = fd.rapids.length ? fd.rapids[0] : fd.confluence;
-            simSpawnBurstAt(rp.x, rp.y - 20, 18, '#c8402a');
-          }
-        }
-      }
-      sim.prevStatus[t.id] = t.status;
-    });
-    Object.keys(sim.prevStatus).forEach(function (id) {
-      if (!(id in seen)) delete sim.prevStatus[id];
-    });
-  };
-
-  var simSpawnFlow = function (e) {
-    var p = {
-      mode: 'flow', path: e.path, dist: e.hold ? Math.random() * e.path.len : Math.random() * Math.min(e.path.len, 80),
-      dir: 1, speed: e.speed * (0.85 + Math.random() * 0.3), wobble: e.wobble,
-      freq: e.freq, phase: e.phase + Math.random() * 6.28, size: e.size,
-      rgb: simHex(e.color), alpha: e.alpha, hold: e.hold,
-      nextPath: e.nextPath || null, nextDist: 0, life: 1, decay: 0,
-      x: 0, y: 0, vx: 0, vy: 0
-    };
-    sim.particles.push(p);
-  };
-  var simStep = function (dt) {
-    sim.emitters.forEach(function (e) {
-      e.acc = (e.acc || 0) + e.rate * dt;
-      while (e.acc >= 1) { e.acc -= 1; simSpawnFlow(e); }
-    });
-    var rapidsN = sim.fd ? sim.fd.rapids.length : 0;
-    var gateN = 0;
-    if (sim.fd) gateN = (sim.fd.tasks || []).filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length;
-    sim.burstAcc = (sim.burstAcc || 0) + (rapidsN * 7 + gateN * 3) * dt;
-    while (sim.burstAcc >= 1 && sim.fd) {
-      sim.burstAcc -= 1;
-      var rp = sim.fd.rapids.length ? sim.fd.rapids[(Math.random() * sim.fd.rapids.length) | 0] : sim.fd.confluence;
-      simSpawnBurstAt(rp.x + (Math.random() - 0.5) * 36, rp.y + (Math.random() - 0.5) * 30, 2, '#c8402a');
+      out.push('<text class="sp-label red" x="' + (fd.rapids[0].x + 6).toFixed(1) + '" y="' + (fd.rapids[0].y - 66).toFixed(1) + '">Rapids · residual conflicts</text>');
     }
 
-    for (var i = sim.particles.length - 1; i >= 0; i--) {
-      var p = sim.particles[i];
-      if (p.mode === 'burst') {
-        p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.985; p.vy = p.vy * 0.985 - 8 * dt;
-        p.life -= p.decay * dt;
-        if (p.life <= 0) sim.particles.splice(i, 1);
-        continue;
-      }
-      var path = p.path;
-      if (p.hold) {
-        p.dist += Math.sin(sim.time * p.freq + p.phase) * p.speed * dt;
-        if (p.dist < 0) p.dist = 0;
-        if (p.dist > path.len) p.dist = path.len;
-      } else {
-        p.dist += p.speed * dt;
-        if (p.dist >= path.len) {
-          if (p.nextPath) { p.path = p.nextPath; p.dist = p.nextDist; p.nextPath = null; p.speed *= 0.92; }
-          else p.dist = 0;
-        }
-      }
-      var pt = pointAt(path, Math.max(0, Math.min(path.len, p.dist)));
-      var nx = -Math.sin(pt.a), ny = Math.cos(pt.a);
-      var off = Math.sin(sim.time * p.freq + p.phase) * p.wobble;
-      var turb = sim.turb || 0;
-      off += Math.sin(sim.time * 5.1 + p.phase * 2.3) * turb * 13;
-      var dx = pt.x - (sim.fd ? sim.fd.confluence.x : W / 2);
-      var dy = pt.y - (sim.fd ? sim.fd.confluence.y : H / 2);
-      var rr = Math.sqrt(dx * dx + dy * dy);
-      var swirl = turb * 26 * Math.max(0, 1 - rr / 240) * Math.sin(sim.time * 2.4 + p.phase);
-      p.x = pt.x + nx * off + (-ny) * swirl;
-      p.y = pt.y + ny * off + nx * swirl + Math.sin(sim.time * 0.9 + p.phase) * 1.4;
-    }
-    if (sim.particles.length > sim.MAXP) sim.particles.splice(0, sim.particles.length - sim.MAXP);
-
-    for (var r = sim.ripples.length - 1; r >= 0; r--) {
-      var rp2 = sim.ripples[r];
-      rp2.r += rp2.vr * dt; rp2.a -= dt * 0.72;
-      rp2.mesh.scale.set(rp2.r, rp2.r, 1);
-      rp2.mesh.material.opacity = Math.max(0, rp2.a);
-      if (rp2.a <= 0) {
-        sim.rippleGroup.remove(rp2.mesh);
-        rp2.mesh.geometry.dispose(); rp2.mesh.material.dispose();
-        sim.ripples.splice(r, 1);
-      }
-    }
+    out.push('<g transform="translate(60,560)">' +
+      '<text class="sp-label strong" x="0" y="0">Legend</text>' +
+      '<rect x="0" y="12" width="12" height="12" fill="none" stroke="var(--ink3)" stroke-width="1.4"/>' +
+      '<text class="sp-label" x="22" y="22">Parcel · agent claim</text>' +
+      '<path d="M-4,42 L8,42" stroke="var(--ink2)" stroke-width="2.4" stroke-linecap="round"/>' +
+      '<circle cx="10" cy="42" r="4" fill="var(--ink2)"/>' +
+      '<text class="sp-label" x="22" y="46">Comet · task in flight</text>' +
+      '<circle cx="6" cy="66" r="4.5" fill="var(--paper)" stroke="var(--amber)" stroke-width="1.8"/>' +
+      '<text class="sp-label" x="22" y="70">Buoy · queued at lock</text>' +
+      '<circle cx="6" cy="90" r="6" fill="none" stroke="var(--green)" stroke-width="1.8"/>' +
+      '<text class="sp-label" x="22" y="94">Ring · landed revision, fades with age</text>' +
+      '<path d="M0,110 l 6,-7 l 6,7 l 6,-7" fill="none" stroke="var(--red)" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<text class="sp-label" x="22" y="118">Rapids · residual conflicts</text>' +
+      '</g>');
+    layer.innerHTML = out.join('');
   };
 
-  var simWriteParticles = function () {
-    var count = Math.min(sim.particles.length, sim.MAXP);
-    for (var i = 0; i < count; i++) {
-      var p = sim.particles[i], w = simWorld(p.x, p.y);
-      sim.pPos[i * 3] = w.x; sim.pPos[i * 3 + 1] = w.y; sim.pPos[i * 3 + 2] = 0;
-      sim.pCol[i * 3] = p.rgb[0]; sim.pCol[i * 3 + 1] = p.rgb[1]; sim.pCol[i * 3 + 2] = p.rgb[2];
-      sim.pSize[i] = p.size * (p.mode === 'burst' ? (0.7 + p.life * 0.5) : (0.9 + 0.18 * Math.sin(sim.time * 3 + (p.phase || 0))));
-      var fade = 1;
-      if (p.mode === 'flow' && p.path && !p.hold) {
-        if (p.dist < 8) fade = p.dist / 8;
-        else if (p.dist > p.path.len - 10) fade = Math.max(0, (p.path.len - p.dist) / 10);
-      }
-      if (p.mode === 'burst') fade = Math.max(0, p.life);
-      sim.pAlpha[i] = p.alpha * fade;
-    }
-    sim.pGeo.setDrawRange(0, count);
-    sim.pGeo.attributes.position.needsUpdate = true;
-    sim.pGeo.attributes.aColor.needsUpdate = true;
-    sim.pGeo.attributes.aSize.needsUpdate = true;
-    sim.pGeo.attributes.aAlpha.needsUpdate = true;
-  };
-
-  var simFrame = function (ts) {
-    if (!sim.active) return;
-    var dt = Math.min(0.05, (ts - sim.last) / 1000 || 0.016);
-    sim.last = ts; sim.time += dt;
-    simStep(dt);
-    simWriteParticles();
-    sim.eddies.forEach(function (e) {
-      var s = 1 + 0.18 * Math.sin(sim.time * 4 + e.phase);
-      e.mesh.scale.set(s, 0.62 * s, 1);
-      e.mesh.material.opacity = 0.34 + 0.24 * Math.sin(sim.time * 3.1 + e.phase);
-    });
-    if (sim.gateMat) {
-      var merging = false;
-      if (sim.fd && sim.fd.tasks) {
-        for (var gi = 0; gi < sim.fd.tasks.length; gi++) {
-          if (sim.fd.tasks[gi].status === 'merging') { merging = true; break; }
-        }
-      }
-      sim.gateMat.color.set(merging ? 0x2f6b4f : 0x10233f);
-      sim.gateMat.opacity = merging ? 0.95 : 0.62 + 0.26 * Math.sin(sim.time * 3);
-    }
-    if (sim.gateCoreMat) sim.gateCoreMat.opacity = 0.62 + 0.28 * Math.sin(sim.time * 4.4);
-    sim.renderer.render(sim.scene, sim.camera);
-    sim.raf = requestAnimationFrame(simFrame);
-  };
-
-  var simSetState = function (fd) {
-    if (!sim.ready || !fd || !fd.trunk) return;
-    sim.fd = fd;
-    var resolving = (fd.tasks || []).filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length;
-    sim.turb = Math.min(1, (fd.rapids.length + resolving) / 4);
-    simSyncFlow(fd);
-    simSyncEmitters(fd);
-    simSyncTasks(fd);
-    if (sim.lastMerges < 0) sim.lastMerges = fd.merges || 0;
-    else if ((fd.merges || 0) > sim.lastMerges) {
-      for (var i = sim.lastMerges; i < fd.merges; i++) {
-        simAddRipple(fd.confluence.x, fd.confluence.y, 0x2c5f8a);
-        simAddRipple(fd.outflow.x, fd.outflow.y, 0x2f6b4f);
-      }
-      sim.lastMerges = fd.merges;
-    } else if ((fd.merges || 0) < sim.lastMerges) sim.lastMerges = fd.merges;
-  };
-
-  var simVert = [
-    'attribute vec3 aColor;',
-    'attribute float aSize;',
-    'attribute float aAlpha;',
-    'uniform float uDpr;',
-    'varying vec3 vColor;',
-    'varying float vAlpha;',
-    'void main(){',
-    '  vColor=aColor; vAlpha=aAlpha;',
-    '  vec4 mv=modelViewMatrix*vec4(position,1.0);',
-    '  gl_Position=projectionMatrix*mv;',
-    '  gl_PointSize=aSize*uDpr;',
-    '}'
-  ].join(' ');
-  var simFrag = [
-    'precision mediump float;',
-    'varying vec3 vColor;',
-    'varying float vAlpha;',
-    'void main(){',
-    '  float d=length(gl_PointCoord-vec2(0.5));',
-    '  float a=smoothstep(0.5,0.12,d)*vAlpha;',
-    '  if(a<0.012) discard;',
-    '  gl_FragColor=vec4(vColor,a);',
-    '}'
-  ].join(' ');
-
-  var initMergeSim = function (done) {
-    var cvs = $('mergeSim');
-    if (!cvs || reducedMotion() || !cvs.getContext) { done(false); return; }
-    if (sim.active) { done(true); return; }
-    import('https://esm.sh/three@0.160.0').then(function (THREE) {
-      try {
-        sim.THREE = THREE;
-        sim.canvas = cvs;
-        sim.renderer = new THREE.WebGLRenderer({ canvas: cvs, alpha: true, antialias: true, powerPreference: 'high-performance' });
-        sim.renderer.setClearColor(0x000000, 0);
-        sim.scene = new THREE.Scene();
-        sim.camera = new THREE.OrthographicCamera(-sim.hw, sim.hw, sim.hh, -sim.hh, 0.1, 100);
-        sim.camera.position.z = 10;
-        sim.flowGroup = new THREE.Group();
-        sim.labelGroup = new THREE.Group();
-        sim.rippleGroup = new THREE.Group();
-        sim.eddyGroup = new THREE.Group();
-        sim.scene.add(sim.flowGroup); sim.scene.add(sim.eddyGroup);
-        sim.scene.add(sim.rippleGroup); sim.scene.add(sim.labelGroup);
-        sim.pGeo = new THREE.BufferGeometry();
-        sim.pPos = new Float32Array(sim.MAXP * 3);
-        sim.pCol = new Float32Array(sim.MAXP * 3);
-        sim.pSize = new Float32Array(sim.MAXP);
-        sim.pAlpha = new Float32Array(sim.MAXP);
-        sim.pGeo.setAttribute('position', new THREE.BufferAttribute(sim.pPos, 3).setUsage(THREE.DynamicDrawUsage));
-        sim.pGeo.setAttribute('aColor', new THREE.BufferAttribute(sim.pCol, 3).setUsage(THREE.DynamicDrawUsage));
-        sim.pGeo.setAttribute('aSize', new THREE.BufferAttribute(sim.pSize, 1).setUsage(THREE.DynamicDrawUsage));
-        sim.pGeo.setAttribute('aAlpha', new THREE.BufferAttribute(sim.pAlpha, 1).setUsage(THREE.DynamicDrawUsage));
-        sim.pGeo.setDrawRange(0, 0);
-        var mat = new THREE.ShaderMaterial({
-          uniforms: { uDpr: { value: sim.dpr } },
-          vertexShader: simVert, fragmentShader: simFrag,
-          transparent: true, depthTest: false, depthWrite: false
-        });
-        sim.points = new THREE.Points(sim.pGeo, mat);
-        sim.points.frustumCulled = false;
-        sim.points.renderOrder = 6;
-        sim.scene.add(sim.points);
-        sim.active = true; sim.ready = true;
-        simResize();
-        if (window.ResizeObserver && cvs.parentElement) new ResizeObserver(simResize).observe(cvs.parentElement);
-        window.addEventListener('resize', simResize);
-        sim.last = performance.now();
-        sim.raf = requestAnimationFrame(simFrame);
-        if (flow.data) simSetState(flow.data);
-        done(true);
-      } catch (err) {
-        sim.active = false; sim.ready = false;
-        done(false);
-      }
-    }).catch(function () { done(false); });
-  };
-
-  var initCenterFX = function () {
-    if (reducedMotion()) { initPlanFX(); return; }
-    initMergeSim(function (ok) {
-      if (!ok) initPlanFX();
-    });
-  };
 
   // ---- state ---------------------------------------------------------------
   var sheetReady = false;
@@ -2029,7 +1927,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     })
     .catch(function () {});
 
-  initCenterFX();
+  initPlanFX();
   if (location.search.indexOf('replay') !== -1) startReplay(); else startStream();
 })();
 </script>
