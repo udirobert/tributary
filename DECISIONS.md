@@ -574,5 +574,8 @@ reduced-motion fallbacks) but changes the composition:
 
 Verified locally: `prettier`, `tsc`, `eslint`, `npm test`, dashboard script
 `node --check`, and agent-browser QA for live state, `/demo/pack`, task drawer
-evidence, `?replay`, and canvas/FX mounting. Public deployment pending in the
-same change set.
+evidence, `?replay`, and canvas/FX mounting. Deployed to
+`https://tributary.persidian.com` (`c4bdbeb`): `/config` reports
+`node/vultr` + `sandbox:"docker"` + Vultr inference, `/` serves the Site Plan,
+`/hero.riv` is gone, and reduced-motion emulation disables both FX canvases
+while live state still renders.
