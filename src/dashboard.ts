@@ -4,6 +4,9 @@ export const DASHBOARD_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Tributary · River Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #04060c;
@@ -27,6 +30,9 @@ export const DASHBOARD_HTML = `<!doctype html>
     --violet-bg: rgba(177, 140, 255, 0.12);
     --pink: #ff7ad9;
     --teal: #2dd4bf;
+    --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; }
@@ -37,7 +43,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       radial-gradient(1000px 800px at 50% 115%, rgba(177, 140, 255, 0.10), transparent 60%),
       linear-gradient(180deg, var(--bg2), var(--bg));
     color: var(--ink);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overflow: hidden;
@@ -46,7 +52,31 @@ export const DASHBOARD_HTML = `<!doctype html>
     * { animation: none !important; transition: none !important; }
   }
 
-  .app { display: flex; flex-direction: column; height: 100vh; }
+  .app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
+  .ambient {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(760px 520px at 18% 8%, rgba(56, 225, 255, 0.13), transparent 62%),
+      radial-gradient(680px 520px at 84% 4%, rgba(79, 140, 255, 0.14), transparent 58%),
+      radial-gradient(820px 620px at 52% 112%, rgba(177, 140, 255, 0.12), transparent 60%),
+      radial-gradient(520px 420px at 8% 78%, rgba(45, 212, 191, 0.08), transparent 60%);
+    animation: ambientDrift 22s ease-in-out infinite alternate;
+  }
+  .ambient::after {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(122,162,255,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(122,162,255,0.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 42%, #000 20%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 42%, #000 20%, transparent 78%);
+  }
+  @keyframes ambientDrift {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(18px, -12px, 0) scale(1.04); }
+    100% { transform: translate3d(-14px, 10px, 0) scale(1.02); }
+  }
+  :focus-visible { outline: 2px solid rgba(56, 225, 255, 0.75); outline-offset: 2px; border-radius: 8px; }
 
   /* ---------- top bar ---------- */
   .topbar {
@@ -61,6 +91,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .brand-mark .dot { fill: var(--cyan); }
   .brand-title { font-size: 15px; font-weight: 700; letter-spacing: 0.2px; }
   .brand-sub { font-size: 11px; color: var(--dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand-title, .stage-head h1, .counter span, .trunk-pill .value, .onboard-title, .task-goal { font-family: var(--font-display); }
   .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
   .cfg { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .cfgb {
@@ -91,11 +122,17 @@ export const DASHBOARD_HTML = `<!doctype html>
   .rail::-webkit-scrollbar-thumb, .feed::-webkit-scrollbar-thumb, .tasks::-webkit-scrollbar-thumb { background: rgba(122,162,255,0.18); border-radius: 8px; }
 
   .panel {
+    position: relative; overflow: hidden;
     background: linear-gradient(180deg, var(--panel), var(--panel2));
-    border: 1px solid var(--line); border-radius: 16px; padding: 14px 15px;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 18px 40px rgba(0,0,0,0.28);
-    backdrop-filter: blur(8px); flex: 0 0 auto;
+    border: 1px solid var(--line); border-radius: 18px; padding: 14px 15px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 20px 44px rgba(0,0,0,0.32);
+    backdrop-filter: blur(10px); flex: 0 0 auto;
   }
+  .panel::before {
+    content: ""; position: absolute; inset: 0 0 auto; height: 1px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(140,190,255,0.28), transparent);
+  }
+  .panel:hover { border-color: rgba(122,162,255,0.22); }
   .panel h2 {
     margin: 0 0 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.5px;
     color: var(--dim); font-weight: 700; display: flex; align-items: center; gap: 8px;
@@ -110,7 +147,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     padding: 9px 11px; outline: none; resize: vertical;
   }
   .composer input:focus, .composer textarea:focus { border-color: rgba(56,225,255,0.55); box-shadow: 0 0 0 3px rgba(56,225,255,0.10); }
-  .composer textarea { min-height: 58px; font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 12px; }
+  .composer textarea { min-height: 58px; font-family: var(--font-mono); font-size: 12px; }
   .composer details { margin-top: 10px; }
   .composer summary { cursor: pointer; font-size: 11.5px; color: var(--dim); }
   .composer-actions { display: flex; gap: 8px; margin-top: 12px; }
@@ -125,7 +162,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .btn.ghost { color: var(--violet); border-color: rgba(177,140,255,0.4); background: var(--violet-bg); }
   .err { color: var(--red); font-size: 11.5px; margin-top: 8px; min-height: 14px; }
   .cmd {
-    font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 12px;
+    font-family: var(--font-mono); font-size: 12px;
     background: rgba(0,0,0,0.4); border: 1px solid var(--line); color: var(--ink);
     padding: 8px 10px; border-radius: 9px; cursor: pointer; white-space: nowrap;
   }
@@ -148,7 +185,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .agent { color: var(--cyan); font-weight: 700; }
   .muted { color: var(--faint); }
   .empty { color: var(--faint); font-size: 12px; padding: 10px 0; }
-  code { font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 11px; color: #bfe9ff; background: rgba(56,225,255,0.08); padding: 1px 5px; border-radius: 6px; }
+  code { font-family: var(--font-mono); font-size: 11px; color: #bfe9ff; background: rgba(56,225,255,0.08); padding: 1px 5px; border-radius: 6px; }
   .pill { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.6px; }
   .pill.queued { color: var(--amber); background: var(--amber-bg); border: 1px solid rgba(255,182,72,0.35); }
 
@@ -190,7 +227,8 @@ export const DASHBOARD_HTML = `<!doctype html>
   .rv-stream-halo { fill: none; stroke-linecap: round; opacity: 0.18; filter: blur(4px); }
   .rv-trunk-halo { fill: none; stroke: url(#rvTrunkGrad); stroke-width: 26; stroke-linecap: round; opacity: 0.16; filter: blur(6px); }
   .rv-trunk { fill: none; stroke: url(#rvTrunkGrad); stroke-width: 9; stroke-linecap: round; }
-  .rv-trunk-core { fill: none; stroke: #dff6ff; stroke-width: 2.2; stroke-linecap: round; opacity: 0.65; }
+  .rv-trunk-core { fill: none; stroke: #dff6ff; stroke-width: 2.2; stroke-linecap: round; opacity: 0.7; stroke-dasharray: 3 16; animation: rvTrunkFlow 5.5s linear infinite; }
+  .rv-ripple { fill: none; stroke: #b18cff; stroke-width: 1.4; opacity: 0.75; transform-box: fill-box; transform-origin: center; animation: rvRipple 2.8s ease-out infinite; }
   .rv-gate { stroke: rgba(255,182,72,0.5); stroke-width: 1.2; stroke-dasharray: 5 7; }
   .rv-node { fill: var(--green); }
   .rv-node-halo { fill: var(--green); opacity: 0.22; }
@@ -199,7 +237,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   .rv-rapids { fill: none; stroke: var(--violet); stroke-width: 2; stroke-dasharray: 4 6; opacity: 0.8; }
   .rv-rapid-dot { fill: var(--violet); }
   .rv-flow { fill: none; stroke: #eaf7ff; stroke-width: 1.6; stroke-linecap: round; opacity: 0.9; }
-  @keyframes rvFlow { to { stroke-dashoffset: -180; } }
+  @keyframes rvFlow { to { stroke-dashoffset: -36; } }
+  @keyframes rvTrunkFlow { to { stroke-dashoffset: -38; } }
+  @keyframes rvRipple { 0% { transform: scale(0.45); opacity: 0.8; } 100% { transform: scale(2.8); opacity: 0; } }
 
   /* ---------- tasks ---------- */
   .tf { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
@@ -275,7 +315,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .tl-row .k { color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; padding-top: 2px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip { font-size: 11px; color: #bfe9ff; background: rgba(56,225,255,0.08); border: 1px solid rgba(56,225,255,0.22); padding: 3px 8px; border-radius: 8px; }
-  .dl { font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .dl { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   .dl .add { color: var(--green); } .dl .del { color: var(--red); } .dl .ctx { color: var(--dim); }
   pre { background: rgba(0,0,0,0.4); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; overflow: auto; font-size: 11.5px; color: #d7e9ff; margin: 8px 0 0; }
   details summary { cursor: pointer; color: var(--cyan); font-size: 12.5px; font-weight: 700; padding: 4px 0; }
@@ -309,6 +349,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     </linearGradient>
   </defs>
 </svg>
+<div class="ambient" aria-hidden="true"></div>
 <div class="app">
   <header class="topbar">
     <div class="brand">
@@ -399,8 +440,28 @@ export const DASHBOARD_HTML = `<!doctype html>
               <stop offset="0" stop-color="rgba(56,225,255,0.05)"/>
               <stop offset="1" stop-color="rgba(4,6,12,0)"/>
             </linearGradient>
+            <linearGradient id="rvBasin" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#4f8cff" stop-opacity="0.14"/>
+              <stop offset="1" stop-color="#38e1ff" stop-opacity="0.05"/>
+            </linearGradient>
+            <radialGradient id="rvPool" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stop-color="#b18cff" stop-opacity="0.34"/>
+              <stop offset="0.65" stop-color="#4f8cff" stop-opacity="0.16"/>
+              <stop offset="1" stop-color="#38e1ff" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="rvEstuary" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stop-color="#38e1ff" stop-opacity="0.30"/>
+              <stop offset="0.7" stop-color="#4f8cff" stop-opacity="0.12"/>
+              <stop offset="1" stop-color="#4f8cff" stop-opacity="0"/>
+            </radialGradient>
           </defs>
-          <rect x="0" y="0" width="1200" height="430" fill="url(#rvBgGrad)"/>
+          <rect x="0" y="0" width="1000" height="620" fill="url(#rvBgGrad)"/>
+          <g fill="none" stroke="rgba(122,162,255,0.08)" stroke-width="1">
+            <path d="M-30,140 C 160,90 340,190 560,150 S 860,80 1040,150"/>
+            <path d="M-30,260 C 180,210 380,320 620,280 S 900,210 1040,280"/>
+            <path d="M-30,420 C 200,470 420,390 660,450 S 920,520 1040,470"/>
+            <path d="M-30,540 C 220,590 460,520 700,570 S 940,610 1040,560"/>
+          </g>
           <g id="riverLayer"></g>
         </svg>
       </div>
@@ -733,6 +794,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     var pts = [];
     for (var tx = 0; tx <= 1000; tx += 80) pts.push(tx + ',' + trunkY(tx).toFixed(1));
     var trunkD = 'M' + pts.join(' L');
+    out.push('<path d="M0,70 C 140,130 250,250 92,360 L92,570 C 320,540 520,500 720,440 L1000,360 L1000,620 L0,620 Z" fill="url(#rvBasin)" opacity="0.55"/>');
 
     // basin grid + watershed gate
     for (var gx = 80; gx < W; gx += 100) {
@@ -762,7 +824,9 @@ export const DASHBOARD_HTML = `<!doctype html>
       var d = 'M0,' + startY.toFixed(1) + ' C 180,' + startY.toFixed(1) + ' 390,' + (cy - 46).toFixed(1) + ' ' + cx.toFixed(1) + ',' + cy.toFixed(1);
       out.push('<path class="rv-stream-halo" d="' + d + '" stroke="' + color + '" stroke-width="7"/>');
       out.push('<path class="rv-stream" d="' + d + '" stroke="' + color + '" stroke-width="2.6" stroke-dasharray="7 11" style="animation: rvFlow 5.5s linear infinite"/>');
-      out.push('<circle r="3.4" fill="' + color + '"><animateMotion dur="4.2s" begin="' + ((i * 0.7) % 4).toFixed(1) + 's" repeatCount="indefinite" path="' + d + '"/></circle>');
+      for (var p = 0; p < 2; p++) {
+        out.push('<circle r="' + (p ? 2.2 : 3.4) + '" fill="' + color + '" opacity="' + (p ? 0.65 : 1) + '"><animateMotion dur="' + (3.9 + p * 1.4).toFixed(1) + 's" begin="' + ((i * 0.7 + p * 1.9) % 5).toFixed(1) + 's" repeatCount="indefinite" path="' + d + '"/></circle>');
+      }
       out.push('<text class="rv-label" x="8" y="' + (startY - 8).toFixed(1) + '" fill="' + color + '">' + esc(String(c.agentId).slice(0, 18)) + '</text>');
       slots.push({ x: cx, y: cy, color: color });
     });
@@ -788,6 +852,14 @@ export const DASHBOARD_HTML = `<!doctype html>
       out.push('<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="' + p.color + '"/>');
     });
     var hubY = trunkY(confluenceX);
+    out.push('<ellipse cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" rx="132" ry="80" fill="url(#rvPool)" opacity="0.9"/>');
+    if (merges > 0) {
+      out.push('<circle class="rv-ripple" cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" r="12"/>');
+      out.push('<circle class="rv-ripple" cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" r="12" style="animation-delay:.9s"/>');
+      var ex = 936, ey = trunkY(ex);
+      out.push('<ellipse cx="' + ex + '" cy="' + ey.toFixed(1) + '" rx="190" ry="96" fill="url(#rvEstuary)" opacity="0.75"/>');
+      out.push('<circle class="rv-ripple" cx="' + ex + '" cy="' + ey.toFixed(1) + '" r="10" style="animation-delay:.45s"/>');
+    }
     out.push('<circle class="rv-hub" cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" r="14"/>');
     out.push('<circle class="rv-hub-core" cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" r="6"/>');
     out.push('<text class="rv-label strong" x="' + confluenceX + '" y="' + (hubY - 24).toFixed(1) + '" text-anchor="middle">confluence</text>');
