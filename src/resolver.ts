@@ -155,6 +155,8 @@ export type ResolveResult =
 			 * the same test gate as every other landing before trunk moves.
 			 */
 			contents?: Record<string, string>;
+			/** What produced the resolution — model id or the fallback label. */
+			via?: string;
 	  }
 	| { status: "logged"; files: string[] }
 	| { status: "skipped"; files: string[] };
@@ -191,6 +193,7 @@ export async function resolveConflict(
 	// verified by the same test gate as every other landing before trunk moves.
 	if (opts?.sides?.length) {
 		const contents: Record<string, string> = {};
+		let usedAi = false;
 		for (const side of opts.sides) {
 			let resolved = side.ours;
 			let via = "fallback (yield to trunk)";
@@ -204,12 +207,18 @@ export async function resolveConflict(
 				if (aiOut != null) {
 					resolved = aiOut;
 					via = RESOLVER_MODEL;
+					usedAi = true;
 				}
 			}
 			contents[side.file] = resolved;
 			console.log(`[Resolver] ${side.file}: resolved via ${via}`);
 		}
-		return { status: "resolved", files: Object.keys(contents), contents };
+		return {
+			status: "resolved",
+			files: Object.keys(contents),
+			contents,
+			via: usedAi ? RESOLVER_MODEL : "fallback (yield to trunk)",
+		};
 	}
 
 	// Demo / test path — no real repo available. Counter ticks, we return early.
@@ -338,7 +347,11 @@ export async function resolveConflict(
 			console.log(
 				`[Resolver] ✅ Committed ${commit} and pushed to ${repoUrl}.`,
 			);
-			return { status: "resolved", files: resolvedFiles };
+			return {
+				status: "resolved",
+				files: resolvedFiles,
+				via: opts.ai ? RESOLVER_MODEL : "fallback",
+			};
 		} else {
 			console.error("[Resolver] Push rejected:", push.error);
 			return { status: "logged", files: resolvedFiles };

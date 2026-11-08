@@ -181,6 +181,44 @@ commit author identity is themed along with the subject — `Tributary Merge
 Queue` → `Tributary Confluence` — so the vocabulary is consistent in the landed
 commits a reader inspects.
 
+## Live surface, storage, and MCP (Oct 14, 2026)
+
+Four changes, all verified on this machine: `npm run test:merge` passes 5/5, and
+`npm run simulate` reports 5/5 claims, 1 conflict prevented, 5/5 merges and
+exits 0.
+
+**Live surface.** The dashboard no longer polls. `GET /registry/events` is a
+Server-Sent Events stream — `snapshot` on connect, `update` on every mutation,
+`: ping` every 15s, each frame carrying the same body as
+`GET /registry/status` (which stays, because the CLI and the simulation use
+it). The dashboard falls back to polling every 1.5s if SSE errors or is
+unavailable.
+`GET /registry/replay` returns the whole retained event log, oldest first, which
+powers the dashboard's `?replay` scrubber.
+
+**Storage.** `ClaimRegistry` is now SQLite-backed (`new_sqlite_classes`). The
+old `save()` rewrote claims, waitlist, stats and the entire event array on every
+claim and release — write amplification that grew with the log. Now each
+mutation writes only the rows it changed; the event log is append-only (capped
+at 2000 rows); the live feed reads the latest 40 while replay reads all of it;
+and overlap detection reads a file→agent index — O(files) instead of O(claims ×
+files). In a live run the replay endpoint retained 74 events while the feed
+capped at 40.
+
+_Caveat:_ this is a storage-backend change, so old local state must be cleared —
+`rm -rf .wrangler/state` — if `wrangler dev` complains on first run.
+
+**MCP.** `scripts/mcp.ts` (`npm run mcp`) is a dependency-free MCP stdio server
+exposing `tributary_claim`, `tributary_release`, `tributary_status`,
+`tributary_commit` and `tributary_conflict`, so an agent can drive the lifecycle
+natively. Known gap: there is no `tributary_fork` tool yet, so
+`tributary_commit` still needs the repo name/remote/token obtained out of band.
+
+**Gate cache.** The semantic gate now caches acorn parse results by a content
+hash (FNV-1a of the source), bounded at 1000 entries with FIFO eviction, so
+unchanged files are never re-parsed. Behaviour is unchanged — the same merges
+are rejected for the same reasons, verified by the harness.
+
 ## Resolved Questions
 
 - Does `wrangler dev` (local) emulate Artifacts bindings, or do import/fork/token flows require `wrangler dev` to a real namespace? **Resolved Oct 14, 2026.**
@@ -228,3 +266,129 @@ commits a reader inspects.
   header: a deterministic seeded trunk (not a clone of the real upstream),
   opaque tokens rather than scoped Cloudflare tokens, DO-memory state, and a
   single mutex that serializes local merges.
+
+## Node/Vultr runtime (Nov 6, 2026)
+
+For the Vultr Agent Rush hackathon (Challenge 1, "Blast Radius Zero") the
+control plane needs to live on a Vultr VM with Vultr Serverless Inference
+for agent LLM calls — while the existing Cloudflare Worker deployment stays
+working as the alternate. Rather than rewriting the bindings out, the Worker
+module is made runtime-portable: `server/index.ts` serves `worker.fetch`
+over `node:http`, and `server/env-node.ts` constructs the same `Env` from
+Vultr-side implementations.
+
+**Decisions taken:**
+
+1. **`cloudflare:workers` is satisfied via `module.registerHooks`, not by
+   editing imports.** `src/index.ts` and `src/artifacts-local.ts` extend
+   `DurableObject` from that specifier, which Node treats as an unresolvable
+   URL scheme. A resolve/load hook pair returns an in-memory module whose
+   `DurableObject` base assigns `ctx`/`env` — the only thing the subclasses
+   need. Hooks must register before the Worker module's graph links, so
+   `server/index.ts` dynamic-imports `../src/index` inside `main()`. Zero
+   changes to Worker behaviour; verified under tsx's CJS output on Node 26.
+2. **`ctx.storage.sql` is `node:sqlite`.** `DatabaseSync` matches the DO
+   API's synchronous shape: `exec()` with no params and multiple statements
+   (only `initSchema`) goes to `db.exec`; single statements are prepared and
+   dispatched on `stmt.columns().length` (`all` vs `run`). Rows come back as
+   plain objects, same as `SqlStorageCursor`. State persists to
+   `TRIBUTARY_DB` (default `.tributary-state.db`, `:memory:` allowed) —
+   faithful to DO storage semantics.
+3. **`MERGE_QUEUE` is an in-process serial drain.** `send()` chains onto a
+   tail promise that invokes `worker.queue({messages: [{body}]})` — the same
+   `max_concurrency = 1` semantics the confluence relies on, including
+   re-queue sends from inside the handler.
+4. **DO namespaces are lazy singletons.** `idFromName()`/`get()` return a
+   fixed id and a lazily constructed instance — one `ClaimRegistry`, one
+   `LocalArtifacts`. Registry gets the sqlite-backed fake `ctx`;
+   `LocalArtifacts` never reads `ctx`.
+5. **The executed gate is the sandbox.** `env.SANDBOX_GATE` (new optional
+   binding) replaces the in-process fixture gate in both merge paths
+   (`mergeTask`, `mergeTaskIntoTrunk`); `collectTree()` materializes the
+   merged workdir into `path -> content`. `server/sandbox.ts` writes the
+   tree to a temp dir and runs `gate.mjs` — `vm.Script` compiles every .js
+   file (syntax check, nothing executed) and validates package.json —
+   inside `docker run --rm --network none --read-only --cap-drop ALL
+--security-opt no-new-privileges --memory 256m --cpus 0.5 --pids-limit
+64`. Providers: `docker` (required on the VM), `local` (child process,
+   empty env, timeout — dev fallback), `off` (in-process gate). The
+   in-process semantic gate always runs alongside; it catches the class the
+   syntax gate can't.
+6. **`AI` becomes Vultr Serverless Inference.** `server/vultr-ai.ts` is an
+   OpenAI-compatible adapter (`/chat/completions`) exposing `ai.run()`;
+   `VULTR_INFERENCE_MODEL` selects the model (default
+   `vultr/glm-5.3-flash`). With no API key the binding is absent and the
+   resolver takes its existing deterministic fallback.
+7. **Verified in-place:** `tsc --noEmit` clean; `npm run test:merge` 5/5;
+   `API_BASE=http://127.0.0.1:8788 npm run simulate` all checks green on the
+   Node runtime (5 claims, 1 prevented conflict, 5 merges, 1 resolver run);
+   a deliberately-broken `src/db.js` commit merged cleanly through git and
+   was rejected by the sandbox gate (`Unexpected token '{'`) and routed to
+   the rapids — the demo's containment moment.
+
+**Known limits of the port:** DO singleton means one process, one registry —
+fine for a single-VM control plane; the docker socket mount trusts the host
+daemon (standard for sibling-container sandboxes); `local` sandbox mode is
+containment-lite, documented as dev-only.
+
+## Product layer (Nov 6, 2026)
+
+Follow-up to the Node/Vultr runtime: turned the spike into a product surface
+for Agent Rush Challenge 1 ("model writes code → runs in a container →
+verifiable output").
+
+**Decisions taken:**
+
+1. **Tasks are first-class entities**, stored in the registry's sqlite
+   (`tasks` table — `commit` renamed `commit_hash`, a reserved word).
+   Lifecycle statuses plus plan, edits, repo, commit, gate evidence and
+   resolution ride the existing SSE snapshot, so the UI needs no new channel.
+   `taskId` threads through queue messages; the confluence updates the record
+   on land / reject / resolve.
+2. **The built-in agent is a client, not a privileged actor** — `src/agent.ts`
+   drives the same registry/artifacts/queue stubs external agents use. The
+   planner calls `env.AI` (Vultr inference primary, Workers AI under wrangler)
+   with the trunk tree from `LocalArtifacts.readTree` and expects full-file
+   edits back as JSON. Tasks submitted with `edits` skip planning (manual/demo
+   path — also the only path when no inference key is configured).
+3. **The gate returns a verdict + evidence record** (`SandboxGateResult` /
+   `GateEvidence` in `src/merge.ts`): provider, the containment spec
+   (no network, read-only, caps, destroyed), output, exit code, duration.
+   Attached to merge outcomes and the task record — the containment boundary
+   rendered per-task in the UI, which is the C1 demo's centerpiece.
+4. **Resolver reports provenance** — `ResolveResult.via` carries the model id
+   or fallback label into the task record.
+5. **UI is task-centric**: composer (goal + advanced footprint/edits), task
+   cards with lifecycle + gate badges, and a detail drawer — plan, footprint
+   chips, per-file edits, the sandbox evidence panel, resolution. The river /
+   pipeline / feed remain as the observability layer beneath.
+
+**Verified:** `tsc` clean; eslint clean; `simulate` 5/5 on Node mode; manual
+`POST /tasks` runs landed (gate pass, evidence attached) and rejected
+(broken JS → sandbox reject → rapids) end-to-end. One simulate flake
+observed (queued claim's 15s retry window under slower sandboxed gates) —
+claim budget raised to 45s.
+
+## Node queue semantics fix (Nov 8, 2026)
+
+Verification on Node 26 found a real deadlock in the `MERGE_QUEUE` shim:
+`send()` returned the drain promise, so a resolver retry sent from inside
+the queue handler waited for a message queued behind the handler that was
+waiting for it. `send()` now resolves as soon as the message is chained —
+matching Cloudflare Queue semantics — while the tail still drains messages
+serially.
+
+**Verified:** a deterministic two-fork same-file conflict now runs
+`conflict → resolver → re-queue → landed`; `npm run simulate` passes 5/5 on
+Node mode; `npm run test:node` covers the re-entrant send regression, and
+`npm test` now runs both the merge-engine and Node-env harnesses.
+
+The same verification pass found `/demo/pack`'s conflict beat was
+timing-dependent: the queued task could fork only after the first merge had
+already landed, turning the intended conflict into a clean fast-forward.
+`src/agent.ts` now splits `prepareAgentTask` (plan → claim → fork → commit →
+release) from `enqueueAgentTask`, and the demo pack prepares all three tasks
+before enqueueing any merge — so both `src/index.js` tributaries still fork
+the same pre-merge trunk and the confluence produces the conflict on demand.
+Verified: demo pack lands task A, conflicts task B into the rapids, rejects
+broken `src/db.js` in the sandbox gate, then lands B's verified resolution.

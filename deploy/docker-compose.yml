@@ -1,0 +1,24 @@
+# Tributary on a Vultr VM: control plane + sandbox gate.
+#
+# The app mounts the host's Docker socket so env.SANDBOX_GATE can spawn a
+# throwaway sibling container per merge gate — no network, read-only root,
+# no capabilities, 256MB/0.5CPU/pids caps, destroyed after each run.
+services:
+  tributary:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8787:8787"
+    environment:
+      # Resolver LLM calls → Vultr Serverless Inference. Optional: without a
+      # key the resolver falls back to deterministic yield-to-trunk.
+      VULTR_INFERENCE_API_KEY: ${VULTR_INFERENCE_API_KEY:-}
+      VULTR_INFERENCE_MODEL: ${VULTR_INFERENCE_MODEL:-vultr/glm-5.3-flash}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tributary-state:/data
+    restart: unless-stopped
+
+volumes:
+  tributary-state:

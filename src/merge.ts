@@ -16,8 +16,8 @@ export interface ConflictSide {
 }
 
 export type MergeOutcome =
-	| { status: "merged"; commit: string }
-	| { status: "already-merged" }
+	| { status: "merged"; commit: string; gate?: GateEvidence }
+	| { status: "already-merged"; gate?: GateEvidence }
 	| {
 			status: "conflict";
 			conflictedFiles: string[];
@@ -29,11 +29,71 @@ export type MergeOutcome =
 			 */
 			sides: ConflictSide[];
 	  }
-	| { status: "failed"; reason: string };
+	| { status: "failed"; reason: string; gate?: GateEvidence };
+
+/**
+ * Evidence a gate run leaves behind, surfaced in the task record and the UI.
+ * For the Docker sandbox this is the containment boundary made legible:
+ * what the environment could not do (no network, no capabilities, read-only,
+ * capped resources, destroyed after) plus what it actually observed.
+ */
+export interface GateEvidence {
+	provider: string;
+	spec?: Record<string, string>;
+	output: string;
+	exitCode: number;
+	durationMs: number;
+}
+
+/** A gate run's verdict plus the evidence it produced. */
+export interface SandboxGateResult {
+	ok: boolean;
+	reason?: string;
+	evidence: GateEvidence;
+}
 
 export interface RemoteRepo {
 	remote: string;
 	token: string;
+}
+
+/**
+ * Sandboxed gate runner: receives the merged tree's files (path -> content)
+ * and returns a verdict plus evidence. The Node/Vultr runtime runs this in
+ * a throwaway container (server/sandbox.ts) so agent-influenced code never
+ * executes in the control-plane process. When absent, the in-process
+ * `runTestGate` stands in — the Workers deployment has no container runtime.
+ */
+export type SandboxGate = (
+	files: Record<string, string>,
+) => Promise<SandboxGateResult>;
+
+/**
+ * Materialize the checked-out tree at `dir` into a path -> content map —
+ * what a sandboxed gate receives. Skips `.git` and `node_modules`.
+ */
+export async function collectTree(
+	fs: MemoryFS,
+	dir: string,
+): Promise<Record<string, string>> {
+	const files: Record<string, string> = {};
+	const walk = async (d: string): Promise<void> => {
+		for (const name of await fs.promises.readdir(d)) {
+			if (name === ".git" || name === "node_modules") continue;
+			const full = `${d}/${name}`;
+			const stat = await fs.promises.stat(full);
+			if (stat.isDirectory()) {
+				await walk(full);
+			} else {
+				files[full.slice(dir.length + 1)] = (await fs.promises.readFile(
+					full,
+					"utf8",
+				)) as string;
+			}
+		}
+	};
+	await walk(dir);
+	return files;
 }
 
 // Author identity for landed merges — the confluence stamps its own name on
@@ -172,6 +232,165 @@ async function readConflictSides(
 	);
 }
 
+interface Node {
+	type: string;
+	[key: string]: unknown;
+}
+
+/** One arity fact discovered in a file, in source order. */
+interface ArityOp {
+	name: string;
+	arity: number;
+	/** `function f(…) {}` — recorded only while the name is still unseen. */
+	ifAbsent: boolean;
+}
+
+/** Per-file scan result; `ok: false` carries the parser's message. */
+interface SourceAnalysis {
+	ok: boolean;
+	message?: string;
+	ops: ArityOp[];
+	calls: { name: string; argc: number }[];
+}
+
+const arityOf = (node: Node): number | null => {
+	if (
+		node.type === "ArrowFunctionExpression" ||
+		node.type === "FunctionExpression"
+	) {
+		return (node.params as Node[]).filter((p) => p.type !== "RestElement")
+			.length;
+	}
+	if (node.type === "AwaitExpression") {
+		return arityOf(node.argument as Node);
+	}
+	return null;
+};
+
+/**
+ * Parse and scan one file in isolation — no shared state, so the result can be
+ * cached and replayed later without depending on which files preceded it.
+ */
+function parseSource(src: string): SourceAnalysis {
+	const ops: ArityOp[] = [];
+	const calls: { name: string; argc: number }[] = [];
+
+	let ast: Node;
+	try {
+		ast = parse(src, {
+			ecmaVersion: "latest",
+			sourceType: "script",
+		}) as unknown as Node;
+	} catch (err) {
+		// Cached like any other result: a file that does not parse must keep
+		// failing the gate on every later merge, not silently pass.
+		return { ok: false, message: (err as Error).message, ops, calls };
+	}
+
+	const visit = (node: Node) => {
+		if (!node || typeof node.type !== "string") return;
+		// exports.f = (...) => … / module.exports.f = function (…) {}
+		if (
+			node.type === "AssignmentExpression" &&
+			(node.left as Node).type === "MemberExpression"
+		) {
+			const left = node.left as Node;
+			const obj = left.object as Node;
+			const prop = left.property as Node;
+			const isExports =
+				(obj.type === "Identifier" &&
+					(obj.name === "exports" || obj.name === "module")) ||
+				(obj.type === "MemberExpression" &&
+					(obj.object as Node).type === "Identifier" &&
+					(obj.object as Node).name === "module" &&
+					(obj.property as Node).name === "exports");
+			if (isExports && prop.type === "Identifier") {
+				const arity = arityOf(node.right as Node);
+				if (arity !== null) {
+					// Unconditional: an export assignment overwrites a prior arity.
+					ops.push({ name: prop.name as string, arity, ifAbsent: false });
+				}
+			}
+		}
+		// function f(…) {} — top-level declaration (may be exported later)
+		if (node.type === "FunctionDeclaration") {
+			const id = node.id as Node | null;
+			if (id?.type === "Identifier") {
+				// Conditional at apply time: a declaration never clobbers a name
+				// an earlier file (or earlier line) already defined.
+				ops.push({
+					name: id.name as string,
+					arity: (node.params as Node[]).length,
+					ifAbsent: true,
+				});
+			}
+		}
+		// f(arg, …) — bare identifier call site
+		if (
+			node.type === "CallExpression" &&
+			(node.callee as Node).type === "Identifier" &&
+			!(node.arguments as Node[]).some((a) => a.type === "SpreadElement")
+		) {
+			calls.push({
+				name: (node.callee as Node).name as string,
+				argc: (node.arguments as Node[]).length,
+			});
+		}
+		for (const value of Object.values(node)) {
+			if (Array.isArray(value)) {
+				for (const child of value) {
+					if (child && typeof child === "object" && "type" in child) {
+						visit(child as Node);
+					}
+				}
+			} else if (value && typeof value === "object" && "type" in value) {
+				visit(value as Node);
+			}
+		}
+	};
+
+	visit(ast);
+	return { ok: true, ops, calls };
+}
+
+/** Cheap synchronous content hash — no crypto, no dependency. */
+function hashSource(src: string): string {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < src.length; i++) {
+		h ^= src.charCodeAt(i);
+		h = Math.imul(h, 0x01000193);
+	}
+	return `${h >>> 0}:${src.length}`;
+}
+
+/**
+ * Content-addressed cache of per-file scans.
+ *
+ * The key is the file's own text, never its path, so the same bytes are only
+ * ever parsed once — across merges, forks and renames. This is safe because a
+ * scan depends on nothing but the source (see `parseSource`): the merged tree
+ * is largely identical merge to merge, and acorn `parse` is the expensive part
+ * of the gate. FIFO-bounded so a long-lived isolate cannot grow without limit;
+ * an eviction is a miss, never a wrong answer.
+ */
+const SOURCE_CACHE_MAX = 1000;
+const SOURCE_CACHE = new Map<string, SourceAnalysis>();
+
+function analyzeSource(src: string): SourceAnalysis {
+	const key = hashSource(src);
+	const hit = SOURCE_CACHE.get(key);
+	if (hit) return hit;
+
+	const result = parseSource(src);
+	if (SOURCE_CACHE.size >= SOURCE_CACHE_MAX) {
+		// Map preserves insertion order, so the first key is the oldest.
+		const oldest = SOURCE_CACHE.keys().next().value;
+		if (oldest !== undefined) SOURCE_CACHE.delete(oldest);
+	}
+	SOURCE_CACHE.set(key, result);
+	return result;
+}
+
 /**
  * Semantic gate: catches the class of conflict `git merge` can't see — a
  * signature change in one file breaking a caller in another. Parses every
@@ -200,94 +419,24 @@ export async function runSemanticGate(
 	};
 	await walk(dir);
 
-	interface Node {
-		type: string;
-		[key: string]: unknown;
-	}
 	const defs = new Map<string, number>();
 	const calls: { name: string; argc: number; file: string }[] = [];
-
-	const arityOf = (node: Node): number | null => {
-		if (
-			node.type === "ArrowFunctionExpression" ||
-			node.type === "FunctionExpression"
-		) {
-			return (node.params as Node[]).filter((p) => p.type !== "RestElement")
-				.length;
-		}
-		if (node.type === "AwaitExpression") {
-			return arityOf(node.argument as Node);
-		}
-		return null;
-	};
-
-	const visit = (node: Node, file: string) => {
-		if (!node || typeof node.type !== "string") return;
-		// exports.f = (...) => … / module.exports.f = function (…) {}
-		if (
-			node.type === "AssignmentExpression" &&
-			(node.left as Node).type === "MemberExpression"
-		) {
-			const left = node.left as Node;
-			const obj = left.object as Node;
-			const prop = left.property as Node;
-			const isExports =
-				(obj.type === "Identifier" &&
-					(obj.name === "exports" || obj.name === "module")) ||
-				(obj.type === "MemberExpression" &&
-					(obj.object as Node).type === "Identifier" &&
-					(obj.object as Node).name === "module" &&
-					(obj.property as Node).name === "exports");
-			if (isExports && prop.type === "Identifier") {
-				const arity = arityOf(node.right as Node);
-				if (arity !== null) defs.set(prop.name as string, arity);
-			}
-		}
-		// function f(…) {} — top-level declaration (may be exported later)
-		if (node.type === "FunctionDeclaration") {
-			const id = node.id as Node | null;
-			if (id?.type === "Identifier" && !defs.has(id.name as string)) {
-				defs.set(id.name as string, (node.params as Node[]).length);
-			}
-		}
-		// f(arg, …) — bare identifier call site
-		if (
-			node.type === "CallExpression" &&
-			(node.callee as Node).type === "Identifier" &&
-			!(node.arguments as Node[]).some((a) => a.type === "SpreadElement")
-		) {
-			calls.push({
-				name: (node.callee as Node).name as string,
-				argc: (node.arguments as Node[]).length,
-				file,
-			});
-		}
-		for (const value of Object.values(node)) {
-			if (Array.isArray(value)) {
-				for (const child of value) {
-					if (child && typeof child === "object" && "type" in child) {
-						visit(child as Node, file);
-					}
-				}
-			} else if (value && typeof value === "object" && "type" in value) {
-				visit(value as Node, file);
-			}
-		}
-	};
 
 	for (const file of files) {
 		const rel = file.slice(dir.length + 1);
 		const src = (await fs.promises.readFile(file, "utf8")) as string;
-		let ast: Node;
-		try {
-			ast = parse(src, {
-				ecmaVersion: "latest",
-				sourceType: "script",
-			}) as unknown as Node;
-		} catch (err) {
-			return `semantic gate: ${rel} does not parse (${(err as Error).message})`;
+		const analysis = analyzeSource(src);
+		if (!analysis.ok) {
+			return `semantic gate: ${rel} does not parse (${analysis.message})`;
 		}
-		visit(ast, rel);
+		// Replay the file's ops in source order so the global map's two write
+		// semantics survive: exports overwrite, declarations only fill a gap.
+		for (const op of analysis.ops) {
+			if (!op.ifAbsent || !defs.has(op.name)) defs.set(op.name, op.arity);
+		}
+		for (const call of analysis.calls) {
+			calls.push({ name: call.name, argc: call.argc, file: rel });
+		}
 	}
 
 	for (const call of calls) {
@@ -337,6 +486,11 @@ export async function mergeTaskIntoTrunk(opts: {
 	task: RemoteRepo;
 	/** Resolver-provided content per file, applied via mergeDriver on retry. */
 	resolutions?: Record<string, string>;
+	/**
+	 * Sandboxed gate runner (Node/Vultr mode). When present, it replaces the
+	 * in-process fixture gate; the semantic gate always runs in-process.
+	 */
+	gate?: SandboxGate;
 	/** Provenance stamped into the merge commit message. */
 	context?: MergeContext;
 }): Promise<MergeOutcome> {
@@ -386,12 +540,27 @@ export async function mergeTaskIntoTrunk(opts: {
 	);
 	if (outcome.status === "conflict") return outcome;
 
+	const verdict = opts.gate
+		? await opts.gate(await collectTree(fs, dir))
+		: null;
 	const gateFailure =
-		(await runTestGate(fs, dir)) ?? (await runSemanticGate(fs, dir));
-	if (gateFailure) return { status: "failed", reason: gateFailure };
+		(verdict
+			? verdict.ok
+				? null
+				: (verdict.reason ?? "sandbox gate failed")
+			: await runTestGate(fs, dir)) ?? (await runSemanticGate(fs, dir));
+	if (gateFailure) {
+		return {
+			status: "failed",
+			reason: gateFailure,
+			gate: verdict?.evidence,
+		};
+	}
 
 	// Already-merged work adds nothing to trunk — skip the push.
-	if (outcome.status === "already-merged") return outcome;
+	if (outcome.status === "already-merged") {
+		return { ...outcome, gate: verdict?.evidence };
+	}
 
 	const push = await git.push({
 		fs,
@@ -408,5 +577,5 @@ export async function mergeTaskIntoTrunk(opts: {
 		};
 	}
 
-	return outcome;
+	return { ...outcome, gate: verdict?.evidence };
 }

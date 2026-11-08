@@ -18,7 +18,7 @@
  * is a real check rather than a log dump.
  */
 
-const API_BASE = "http://127.0.0.1:8787";
+const API_BASE = process.env.API_BASE ?? "http://127.0.0.1:8787";
 
 interface Task {
 	agentId: string;
@@ -101,9 +101,11 @@ async function runAgent(task: Task): Promise<boolean> {
 	const { agentId, footprint, edit } = task;
 	console.log(`[${agentId}] starting; footprint: ${footprint.join(", ")}`);
 
-	// 1. Claim (retry while queued behind an overlapping claim).
+	// 1. Claim (retry while queued behind an overlapping claim). Budget is
+	// generous because sandboxed gates make each merge slower than the
+	// in-process fixture did — a queued claim can sit a while.
 	let claimed = false;
-	for (let attempt = 1; attempt <= 15 && !claimed; attempt++) {
+	for (let attempt = 1; attempt <= 45 && !claimed; attempt++) {
 		const res = await post("/registry/claim", {
 			agentId,
 			files: footprint,

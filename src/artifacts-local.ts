@@ -33,10 +33,12 @@ import git from "isomorphic-git";
 import { DurableObject } from "cloudflare:workers";
 import { MemoryFS } from "./memory-fs";
 import {
+	collectTree,
 	mergeBranches,
 	runTestGate,
 	runSemanticGate,
 	type MergeOutcome,
+	type SandboxGate,
 } from "./merge";
 
 const DIR = "/artifacts-store";
@@ -276,6 +278,8 @@ export class LocalArtifacts extends DurableObject {
 	async mergeTask(args: {
 		task: string;
 		resolutions?: Record<string, string>;
+		/** Sandboxed gate runner (Node/Vultr mode) — see merge.SandboxGate. */
+		gate?: SandboxGate;
 		context?: import("./merge").MergeContext;
 	}): Promise<MergeOutcome> {
 		return this.run(async () => {
@@ -297,8 +301,15 @@ export class LocalArtifacts extends DurableObject {
 			);
 			if (outcome.status === "conflict") return outcome;
 
+			const verdict = args.gate
+				? await args.gate(await collectTree(this.fs, DIR))
+				: null;
 			const gateFailure =
-				(await runTestGate(this.fs, DIR)) ??
+				(verdict
+					? verdict.ok
+						? null
+						: (verdict.reason ?? "sandbox gate failed")
+					: await runTestGate(this.fs, DIR)) ??
 				(await runSemanticGate(this.fs, DIR));
 
 			if (gateFailure || outcome.status === "failed") {
@@ -323,12 +334,31 @@ export class LocalArtifacts extends DurableObject {
 					reason:
 						gateFailure ??
 						(outcome.status === "failed" ? outcome.reason : "unknown"),
+					gate: verdict?.evidence,
 				};
 			}
 
 			// `merged` already advanced the trunk branch in place;
 			// `already-merged` adds nothing. Both are green.
-			return outcome;
+			return { ...outcome, gate: verdict?.evidence };
+		});
+	}
+
+	/**
+	 * Read a repo's full tree as path -> content. The agent planner uses the
+	 * trunk tree as its working context — what it is allowed to change.
+	 */
+	async readTree(args: { repo: string }): Promise<Record<string, string>> {
+		return this.run(async () => {
+			await this.boot();
+			const branch = this.branchFor(args.repo);
+			await git.checkout({
+				fs: this.fs,
+				dir: DIR,
+				ref: branch,
+				force: true,
+			});
+			return collectTree(this.fs, DIR);
 		});
 	}
 

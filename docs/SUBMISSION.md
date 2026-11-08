@@ -50,9 +50,9 @@ submission form. Sections are pre-cut for the form fields.
 > applies the resolution through a `mergeDriver`, and the gate re-verifies
 > before trunk moves; a resolution only lands green.
 >
-> The dashboard polls `/registry/status` every 1.5s: trunk state, the watershed
-> (claims and waitlist), and three counters — merges, conflicts prevented,
-> resolver runs. The third should stay small.
+> The dashboard streams over SSE: trunk state, the watershed (claims and
+> waitlist), and three counters — merges, conflicts prevented, resolver runs.
+> The third should stay small.
 
 ---
 

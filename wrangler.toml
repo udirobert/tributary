@@ -35,9 +35,13 @@ class_name = "ClaimRegistry"
 name = "LOCAL_ARTIFACTS"
 class_name = "LocalArtifacts"
 
+# ClaimRegistry is SQLite-backed: row-level writes for claims/waitlist/events
+# instead of rewriting every key on each mutation, plus a full event history
+# for `?replay`. This is a storage-backend change — clear any old local state
+# (`.wrangler/state`) if `wrangler dev` complains.
 [[migrations]]
 tag = "v1"
-new_classes = ["ClaimRegistry"]
+new_sqlite_classes = ["ClaimRegistry"]
 
 [[migrations]]
 tag = "v2"

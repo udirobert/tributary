@@ -1,86 +1,77 @@
 # Tributary — handoff checklist
 
-Last updated: Oct 14, 2026 (after the river-vocabulary pass, README banner, and
-social-preview art).
+Last updated: Nov 8, 2026 (after the Node/Vultr verification pass: queue
+semantics fix, deterministic demo pack, Node-env regression test).
 
 ## Where the project stands
 
-All of the following was verified on this machine at the time of writing:
+Verified on this machine during the latest pass:
 
-- `npm run dev` boots with **no Cloudflare account**. All three bindings report
-  mode `local` (`ClaimRegistry`, `LocalArtifacts`, `merge-queue`); the only
-  remote binding is the optional `[ai]`.
-- `npm run simulate` drives five concurrent agents end-to-end and **exits 0**.
-  It self-checks that all agents obtained a claim, that an overlapping claim
-  was refused and queued, and that every task passed through the serial merge
-  queue.
-- `npm run test:merge` passes 5/5 — clean merge, real conflict, no-op re-merge,
-  test-gate failure, and a signature-change semantic conflict.
-- `npm run simulate` runs **five** agents: Alpha/Bravo produce the same-file
-  conflict → resolver → landed arc, and **Agent-Echo** produces the semantic
-  beat — `greet()` signature change merges clean in git, then fails the
-  acorn-based semantic gate (`greet() called with 1 arg(s) in src/handlers.js
-but defined with 2 param(s)`).
-- The worker log shows real landings with commit SHAs, and Alpha/Bravo's
-  same-line edit on `src/index.js` surfacing as a genuine conflict routed to
-  the resolver — **and then landing**: the resolver produces resolved content
-  via Workers AI, the task re-queues once with the resolution attached, and
-  the retried merge applies it via `mergeDriver` + re-verifies through the
-  test gate (`conflict → resolver → landed`, real merge SHA on trunk).
-- `npm run typecheck`, `npm run lint` (0 errors) and `npm run format:check` all
-  pass.
-- The dashboard was rendered in headless Chrome: counters update, the event
-  feed shows real tagged events with agent names and SHAs, and the onboarding
-  banner is visible on a fresh store.
-- The waitlist lifecycle is correct: a queued claim is promoted automatically
-  when the holder releases (no client retry needed), the dashboard waitlist
-  drains, and a rejected merge no longer flips `trunkStatus` red — rejections
-  are counted separately because the queue prevented them from landing.
-- The resolver model was moved to `@cf/meta/llama-3.1-8b-instruct-fast` —
-  the non-`-fast` variant was deprecated 2026-05-30 and errors 5028 on call.
-  If Workers AI rate-limits mid-run (error 1031 observed once), the resolver
-  falls back to yield-to-trunk and the task still lands — the demo survives
-  it, and the log labels the fallback honestly.
-- The outward-facing surfaces speak the project's river vocabulary
-  (watershed → confluence → rapids): the dashboard, README, submission copy,
-  demo script, code comments, and the `[Confluence]` queue log. The README
-  carries a `docs/hero.svg` banner; `docs/social-preview.png` matches it.
+- `npm run dev:node` boots the same Worker module under plain Node with
+  `TRIBUTARY_DB=:memory:` and `TRIBUTARY_SANDBOX=local`; `/config` reports
+  `mode: "node/vultr"` and the active sandbox provider.
+- `API_BASE=http://127.0.0.1:8788 npm run simulate` drives five concurrent
+  agents end-to-end and exits 0: five claims granted, one overlapping claim
+  queued/promoted, five merge-queue items processed, trunk green.
+- `npm test` passes: the five-case merge-engine harness plus the new
+  Node-env queue regression (`scripts/test-node-env.ts`).
+- `npm run typecheck`, `npm run lint` (0 errors; existing `any` warnings
+  only), and `npm run format:check` pass.
+- `POST /demo/pack` is now deterministic: all three preset tasks prepare
+  their forks before any merge is enqueued, so the two `src/index.js` tasks
+  fork the same pre-merge trunk. Verified result: task A lands, task B hits
+  `conflict in src/index.js`, the resolver yields to trunk, the retry merge
+  lands, and broken `src/db.js` is rejected by the sandbox gate with evidence.
+- `POST /tasks` with explicit `edits` runs through the built-in agent path
+  and lands with sandbox-gate evidence attached.
+- `npm run dev` / Wrangler still boots with local bindings; `/config`,
+  `/registry/status`, and the dashboard respond successfully.
+- `npm run mcp` answered a real `initialize` / `tools/list` /
+  `tributary_status` handshake over stdio against the Node server.
+- `deploy/setup-vultr.sh` passes `bash -n`.
+
+Earlier Cloudflare-path verification still stands: SSE + replay, SQLite
+registry storage, MCP server, gate cache, live dashboard, and the offline
+Artifacts shim.
+
+## Current priority
+
+The active target is the **Vultr Agent Rush Challenge 1 — “Blast Radius
+Zero”** path documented in DECISIONS.md: model writes code → code runs in a
+container → verifiable output. The Node/Vultr control plane is implemented
+and locally verified; the remaining proof is on a real Vultr VM with Docker
+and Vultr Inference configured.
 
 ## What is left
 
-1. **Push to GitHub — done.** The repo is live at
-   <https://github.com/udirobert/tributary> on `main`. This block is the
-   one-time setup that already ran, kept for reference:
+1. **Deploy to Vultr.** Run `deploy/setup-vultr.sh` on a fresh Cloud Compute
+   VM, or use `deploy/docker-compose.yml` where Docker is already present.
+   Then set `VULTR_INFERENCE_API_KEY` and optionally `VULTR_INFERENCE_MODEL`
+   in `/etc/tributary.env`.
 
-   ```sh
-   gh repo create tributary --public --description "Coordination layer \
-       for many agents on one codebase — Cloudflare 'Build the next GitHub'"
-   git remote add origin git@github.com:udirobert/tributary.git
-   git push -u origin main
-   ```
+2. **Verify the deployed containment boundary.** `/config` should report
+   `sandbox: "docker"` and `ai.provider: "vultr"`. Run `simulate` and
+   `/demo/pack` against the public URL; the demo should show sandbox evidence
+   per task, the deterministic conflict → resolver → landed arc, and the
+   broken-code rejection.
 
-   The URL is already filled into `docs/SUBMISSION.md` ("Links to include").
+3. **Record the demo.** `docs/DEMO_SCRIPT.md` is the Cloudflare-challenge
+   script; for Vultr, lead with the task dashboard, sandbox evidence, and
+   the deterministic demo pack rather than the raw five-agent harness.
 
-   Then set the social preview: **Settings → General → Social preview →
-   Upload an image**, using `docs/social-preview.png` (1280×640, 253 KB; the
-   SVG source is `docs/social-preview.svg`). This is a repository setting, not
-   a committed file — it cannot be set from git.
+4. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
+   repo and submission copy remain in `docs/SUBMISSION.md`; social preview
+   still has to be set in GitHub repository settings if it has not been.
 
-2. **Submit the form**, using `docs/SUBMISSION.md` for the field text.
+5. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
+   add the `[[artifacts]]` block to `wrangler.toml`, drop the
+   `LOCAL_ARTIFACTS` binding and its `v2` migration, `npx wrangler login`,
+   then `npm run dev` and `npm run simulate`.
 
-3. **Record the demo.** `docs/DEMO_SCRIPT.md` is the script (target 5–7 min).
-   No paid account is needed for the recording; run `npm run test:merge` once on
-   camera for the "the merge engine is real" beat, and let the Bravo conflict
-   show the full `conflict → resolver → re-queue → landed` arc live.
-
-4. **(Stretch) Verify against real Artifacts** on a Workers Paid account: add
-   the `[[artifacts]]` block to `wrangler.toml`, drop the `LOCAL_ARTIFACTS`
-   binding and its `v2` migration, `npx wrangler login`, then `npm run dev` and
-   `npm run simulate`.
-
-5. **(Stretch) Richer gate.** The gate is a `package.json` parse plus an
-   acorn arity check over the merged tree; a production version runs the
-   repo's real test suite in a Cloudflare Sandbox before the merge lands.
+6. **(Stretch) Richer gate / MCP fork tool.** The executed gate is real but
+   still syntax/package-json scoped; production shape is the repo's own
+   toolchain in the same sandbox. MCP still lacks `tributary_fork`, so
+   `tributary_commit` needs repo credentials obtained separately.
 
 ## River vocabulary (theme)
 
@@ -102,23 +93,44 @@ unchanged — they are plumbing, not prose. See DECISIONS.md.
   the offline shim (`src/artifacts-local.ts`) instead.
 - **The shim is not Artifacts.** It seeds a deterministic trunk rather than
   cloning the real upstream, mints opaque tokens rather than scoped Cloudflare
-  tokens, keeps state in DO memory, and serializes merges with a single mutex.
-- **`[ai]` reaches the network.** Remote Workers AI may incur charges even in
-  local dev; delete the binding for a strictly offline run — the resolver then
-  uses the deterministic yield-to-trunk fallback, which still lands.
+  tokens, keeps state in DO/Node memory or sqlite, and serializes merges with a
+  single mutex/drain.
+- **Docker sandboxing is not yet proven on a host.** The provider is
+  implemented (`server/sandbox.ts`) and the compose/systemd deploy path mounts
+  the Docker socket, but the latest local verification used
+  `TRIBUTARY_SANDBOX=local` because Docker is not installed on the dev machine.
+- **Vultr Inference is optional but unverified here.** Without
+  `VULTR_INFERENCE_API_KEY`, planning/resolution fall back to supplied edits
+  and deterministic yield-to-trunk behavior.
+- **Node mode is single-process.** The DO namespaces are singleton instances
+  and the queue drain is in-process — correct for one VM control plane, not a
+  distributed deployment.
+- **`[ai]` under Wrangler reaches the network.** Remote Workers AI may incur
+  charges even in local dev; delete the binding for a strictly offline run.
+- **Local DO state resets with the storage change.** `ClaimRegistry` is
+  SQLite-backed, so a checkout carrying old Wrangler local state may need
+  `rm -rf .wrangler/state` before `npm run dev`.
 
 ## File map
 
-| File                     | Status   | What it does                                                          |
-| ------------------------ | -------- | --------------------------------------------------------------------- |
-| `src/index.ts`           | core     | Worker routes, `ClaimRegistry` DO, queue consumer, provider switch    |
-| `src/artifacts-local.ts` | new      | `LocalArtifacts` DO — offline Artifacts surface on isomorphic-git     |
-| `src/merge.ts`           | new      | Real three-way merge + test gate                                      |
-| `src/resolver.ts`        | new      | Conflict-side resolution via Workers AI + staged-privilege clone path |
-| `src/dashboard.ts`       | new      | Coordination console: pipeline strip, live feed, onboarding           |
-| `src/memory-fs.ts`       | modified | In-memory FS for isomorphic-git (`readlink`/`symlink`, fsError)       |
-| `scripts/simulate.ts`    | modified | 5-agent harness, deterministic footprints, self-checking              |
-| `scripts/test-merge.ts`  | new      | 5-case merge-engine harness                                           |
-| `scripts/tributary.ts`   | new      | Agent-facing CLI (`claim / fork / commit / release / run`)            |
-| `wrangler.toml`          | modified | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`      |
-| `docs/`                  | new      | Demo script, submission writeup, checklist, hero + social preview art |
+| File                       | Status   | What it does                                                              |
+| -------------------------- | -------- | ------------------------------------------------------------------------- |
+| `src/index.ts`             | core     | Routes, SQLite `ClaimRegistry` DO, task API, SSE + replay, queue consumer |
+| `src/agent.ts`             | product  | Built-in agent: prepare (plan/claim/fork/commit) → enqueue → confluence   |
+| `src/artifacts-local.ts`   | core     | `LocalArtifacts` DO — offline Artifacts surface on isomorphic-git         |
+| `src/merge.ts`             | core     | Real three-way merge + fixture/semantic/sandbox gates                     |
+| `src/resolver.ts`          | core     | Conflict-side resolution via Workers AI / Vultr + staged clone path       |
+| `src/dashboard.ts`         | product  | Task cards, river, SSE, `?replay`, sandbox/gate evidence                  |
+| `src/memory-fs.ts`         | modified | In-memory FS for isomorphic-git                                           |
+| `server/index.ts`          | runtime  | Node/Vultr entry: `node:http` wrapper around the Worker module            |
+| `server/env-node.ts`       | runtime  | Node bindings: node:sqlite registry, serial queue, Vultr AI, sandbox      |
+| `server/sandbox.ts`        | runtime  | Docker/local containment gate for merged trees                            |
+| `server/vultr-ai.ts`       | runtime  | OpenAI-compatible Vultr Inference adapter for `ai.run()`                  |
+| `deploy/`                  | runtime  | Vultr VM setup script, Dockerfile, compose file                           |
+| `scripts/simulate.ts`      | harness  | 5-agent end-to-end simulation, self-checking                              |
+| `scripts/test-merge.ts`    | harness  | 5-case merge-engine harness                                               |
+| `scripts/test-node-env.ts` | harness  | Node-env queue semantics regression                                       |
+| `scripts/tributary.ts`     | agent    | Agent-facing CLI (`claim / fork / commit / release / run`)                |
+| `scripts/mcp.ts`           | agent    | MCP stdio server — five lifecycle tools for agents                        |
+| `wrangler.toml`            | config   | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`          |
+| `docs/`                    | docs     | Demo script, submission copy, MCP reference, checklist, hero art          |
