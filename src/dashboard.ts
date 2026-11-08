@@ -925,10 +925,6 @@ export const DASHBOARD_HTML = `<!doctype html>
   var colorFor = function (name, i) { return PALETTE[(hash(String(name || 'x')) + i) % PALETTE.length]; };
   var W = 1200, H = 760;
   var CONFLUENCE = { x: 640, y: 560 };
-  var trunkPoint = function (x) {
-    var t = (x - CONFLUENCE.x) / 520;
-    return 560 + Math.sin(t * Math.PI) * 10 - Math.max(0, t) * 18;
-  };
   var makePath = function (pts) {
     var cum = [0], len = 0;
     for (var i = 1; i < pts.length; i++) {
@@ -976,79 +972,30 @@ export const DASHBOARD_HTML = `<!doctype html>
     if (sig === planSig) return;
     planSig = sig;
 
-    var out = [];
-    var fd = { claims: [], waitlist: [], rapids: [], trunk: makePath(sampleCubic([CONFLUENCE.x, CONFLUENCE.y], [820, CONFLUENCE.y - 20], [1010, trunkPoint(1010) + 10], [1160, trunkPoint(1160)], 48)), confluence: CONFLUENCE, outflow: { x: 1140, y: trunkPoint(1140) }, merges: merges, trunkRed: trunkRed, tasks: tasks.map(function (t, i) { return { id: t.id, status: t.status, agentId: t.agentId, idx: i + 1 }; }) };
+    var fd = { claims: [], waitlist: [], rapids: [], trunk: makePath(sampleCubic([CONFLUENCE.x, CONFLUENCE.y], [850, CONFLUENCE.y - 70], [1040, CONFLUENCE.y + 35], [1160, 505], 72)), confluence: CONFLUENCE, outflow: null, merges: merges, trunkRed: trunkRed, tasks: tasks.map(function (t, i) { return { id: t.id, status: t.status, agentId: t.agentId, idx: i + 1 }; }) };
+    var op = pointAt(fd.trunk, fd.trunk.len - 24);
+    fd.outflow = { x: op.x, y: op.y };
 
-    // staged / waitlist parcels
-    out.push('<rect class="sp-staged" x="64" y="86" width="352" height="132"/>');
-    out.push('<rect x="64" y="86" width="352" height="132" fill="url(#hatchWait)" opacity="0.7"/>');
-    out.push('<text class="sp-label" x="76" y="106">STAGED · WAITLIST</text>');
-    queued.slice(0, 5).forEach(function (w, i) {
-      var x = 84 + (i % 2) * 168, y = 122 + Math.floor(i / 2) * 34;
-      out.push('<text class="sp-label" x="' + x + '" y="' + y + '" fill="#9a6a1f">' + esc(String(w.agentId).slice(0, 16)) + '</text>');
-      fd.waitlist.push({ agentId: w.agentId, path: makePath([[x, y + 8], [x + 120, y + 8]]) });
-    });
-    if (!queued.length) out.push('<text class="sp-label" x="84" y="170">NO STAGED WORK</text>');
-
-    // claim parcels + surveyed channels
     claims.forEach(function (c, i) {
-      var col = i % 2, row = Math.floor(i / 2);
-      var px = 76 + col * 188, py = 268 + row * 108;
-      var pw = 168, ph = 84;
       var color = colorFor(c.agentId, i);
+      var ax = 150 + (i % 3) * 190, ay = 190 + Math.floor(i / 3) * 130;
       var files = (c.files && c.files.length) || 0;
-      out.push('<rect class="sp-parcel" x="' + px + '" y="' + py + '" width="' + pw + '" height="' + ph + '" fill="url(#hatchMid)"/>');
-      out.push('<rect class="sp-parcel" x="' + px + '" y="' + py + '" width="' + pw + '" height="' + ph + '" fill="none" stroke="' + color + '" stroke-width="1.4"/>');
-      out.push('<text class="sp-label strong" x="' + (px + 10) + '" y="' + (py + 22) + '" fill="' + color + '">' + esc(String(c.agentId).slice(0, 18)) + '</text>');
-      out.push('<text class="sp-label" x="' + (px + 10) + '" y="' + (py + 42) + '">' + files + ' file' + (files === 1 ? '' : 's') + ' claimed</text>');
-      out.push('<text class="sp-label" x="' + (px + 10) + '" y="' + (py + 60) + '">' + esc(String((c.files || [])[0] || 'footprint').slice(0, 22)) + '</text>');
-      var sx = px + pw, sy = py + ph / 2;
-      var cx1 = sx + 90, cy1 = sy - 30, cx2 = CONFLUENCE.x - 120, cy2 = CONFLUENCE.y - 70;
-      var d = 'M' + sx + ',' + sy.toFixed(1) + ' C ' + cx1 + ',' + cy1.toFixed(1) + ' ' + cx2 + ',' + cy2.toFixed(1) + ' ' + CONFLUENCE.x + ',' + CONFLUENCE.y.toFixed(1);
-      fd.claims.push({ agentId: c.agentId, color: color, endX: CONFLUENCE.x, path: makePath(sampleCubic([sx, sy], [cx1, cy1], [cx2, cy2], [CONFLUENCE.x, CONFLUENCE.y], 40)) });
-      out.push('<path class="sp-channel-halo" d="' + d + '" stroke="' + color + '" stroke-width="8"/>');
-      out.push('<path class="sp-channel" d="' + d + '" stroke="' + color + '" stroke-width="2.2" stroke-dasharray="6 8"/>');
+      fd.claims.push({ agentId: c.agentId, color: color, files: files, endX: CONFLUENCE.x, anchor: { x: ax, y: ay }, path: makePath(sampleCubic([ax, ay], [ax + 140, ay - 60], [CONFLUENCE.x - 180, CONFLUENCE.y - 140], [CONFLUENCE.x, CONFLUENCE.y], 44)) });
+    });
+    queued.slice(0, 6).forEach(function (w, i) {
+      var wx = 120 + (i % 3) * 160, wy = 116 + Math.floor(i / 3) * 72;
+      fd.waitlist.push({ agentId: w.agentId, anchor: { x: wx, y: wy }, path: makePath([[wx, wy + 16], [wx + 120, wy + 16]]) });
     });
 
-    // The confluence gate and trunk current are rendered by the merge
-    // simulation; the SVG keeps drafting labels and revision evidence only.
-    var bx = CONFLUENCE.x, by = CONFLUENCE.y;
     var inflight = tasks.filter(function (t) { return ['landed','rejected','failed'].indexOf(t.status) === -1; });
-    out.push('<text class="sp-display" x="' + bx + '" y="' + (by - 76) + '" text-anchor="middle">CONFLUENCE</text>');
-    out.push('<text class="sp-label strong" x="' + bx + '" y="' + (by - 56) + '" text-anchor="middle">CP-01 · SERIAL MERGE QUEUE</text>');
-    out.push('<text class="sp-label" x="' + bx + '" y="' + (by + 104) + '" text-anchor="middle">VERIFIED REVISIONS ONLY</text>');
-
-    // landed stamps along trunk
-    var landed = tasks.filter(function (t) { return t.status === 'landed'; }).slice(0, 9);
-    landed.forEach(function (t, i) {
-      var x = 706 + i * 46, y = trunkPoint(x);
-      out.push('<g class="stamp-in" style="animation-delay:' + Math.min(i * 60, 480) + 'ms">' +
-        '<rect class="sp-stamp" x="' + (x - 17) + '" y="' + (y - 30) + '" width="34" height="18" transform="rotate(-8 ' + x + ' ' + (y - 20) + ')"/>' +
-        '<text x="' + x + '" y="' + (y - 17) + '" text-anchor="middle" transform="rotate(-8 ' + x + ' ' + (y - 20) + ')">OK</text></g>');
-    });
-
-    // rejected / failed marks near rapids
-    tasks.filter(function (t) { return t.status === 'rejected' || t.status === 'failed'; }).slice(0, 6).forEach(function (t, i) {
-      var x = 742 + i * 52, y = trunkPoint(x) - 44;
-      out.push('<g class="redline-in">' +
-        '<line class="sp-reject" x1="' + (x - 8) + '" y1="' + (y - 8) + '" x2="' + (x + 8) + '" y2="' + (y + 8) + '"/>' +
-        '<line class="sp-reject" x1="' + (x + 8) + '" y1="' + (y - 8) + '" x2="' + (x - 8) + '" y2="' + (y + 8) + '"/></g>');
-    });
-
-    // rapids feed the simulation turbulence field even though the clouds are
-    // now particle eddies rather than SVG markup.
     var rapidsActive = Math.min(rapids + inflight.filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length, 5);
     for (var r = 0; r < rapidsActive; r++) {
-      var rx = CONFLUENCE.x + 92 + r * 58, ry = trunkPoint(rx) - 52 - (r % 2) * 18;
-      fd.rapids.push({ x: rx, y: ry });
+      var pt = pointAt(fd.trunk, fd.trunk.len * (0.24 + r * 0.13));
+      fd.rapids.push({ x: pt.x, y: pt.y - 44 - (r % 2) * 18 });
     }
-    if (rapidsActive) out.push('<text class="sp-label red" x="' + (CONFLUENCE.x + 120) + '" y="' + (trunkPoint(CONFLUENCE.x + 120) - 78) + '">RAPIDS · RESIDUAL CONFLICTS</text>');
-
-    var ex = 1120, ey = trunkPoint(ex);
-    out.push('<text class="sp-label strong" x="' + (ex - 30) + '" y="' + (ey - 24) + '" text-anchor="end">AS-BUILT TRUNK</text>');
 
     var layer = $('planLayer');
-    if (layer) layer.innerHTML = out.join('');
+    if (layer) layer.innerHTML = '';
     $('sheetCap').textContent = (!claims.length && !queued.length && !merges)
       ? 'The site is quiet — no changes in flight'
       : (claims.length + ' in flight · ' + queued.length + ' staged · ' + merges + ' landed' + (rapids ? ' · ' + rapids + ' rapids' : ''));
@@ -1358,6 +1305,14 @@ export const DASHBOARD_HTML = `<!doctype html>
     return m;
   };
 
+  var simAddLabel = function (text, color, x, y) {
+    var sp = simLabelSprite(text, color);
+    var w = simWorld(x, y);
+    sp.position.set(w.x, w.y, 0);
+    sim.labelGroup.add(sp);
+    return sp;
+  };
+
   var simSyncFlow = function (fd) {
     var T = sim.THREE;
     simClearGroup(sim.flowGroup);
@@ -1366,53 +1321,70 @@ export const DASHBOARD_HTML = `<!doctype html>
     simClearGroup(sim.eddyGroup);
     sim.ripples = [];
     sim.eddies = [];
+    sim.gateMat = null;
+    sim.gateCoreMat = null;
     var cw = simWorld(fd.confluence.x, fd.confluence.y);
 
-    // basin, gate, and serial checkpoint
-    var basin = simAddMesh(sim.flowGroup, new T.CircleGeometry(136, 72), 0xf5efe2, 0.94, cw.x, cw.y, 0.58);
-    basin.renderOrder = 1;
-    simAddMesh(sim.flowGroup, new T.RingGeometry(92, 101, 72), 0x10233f, 0.42, cw.x, cw.y, 0.58);
-    simAddMesh(sim.flowGroup, new T.RingGeometry(56, 62, 64), 0x2c5f8a, 0.5, cw.x, cw.y, 0.58);
-    simAddMesh(sim.flowGroup, new T.RingGeometry(17, 25, 56), 0x10233f, 0.9, cw.x, cw.y, 1);
-    simAddMesh(sim.flowGroup, new T.CircleGeometry(7, 28), 0x10233f, 0.95, cw.x, cw.y, 1);
+    // confluence pool + CP-01 serial lock
+    var pool = simAddMesh(sim.flowGroup, new T.CircleGeometry(150, 80), 0x2c5f8a, 0.10, cw.x, cw.y, 0.62);
+    pool.renderOrder = 1;
+    simAddMesh(sim.flowGroup, new T.RingGeometry(96, 106, 80), 0x10233f, 0.35, cw.x, cw.y, 0.62);
+    simAddMesh(sim.flowGroup, new T.RingGeometry(58, 64, 72), 0x2c5f8a, 0.55, cw.x, cw.y, 0.62);
+    var gateRing = simAddMesh(sim.flowGroup, new T.RingGeometry(18, 27, 64), 0x10233f, 0.9, cw.x, cw.y, 1);
+    sim.gateMat = gateRing.material;
+    var gateCore = simAddMesh(sim.flowGroup, new T.CircleGeometry(8, 32), 0x10233f, 0.95, cw.x, cw.y, 1);
+    sim.gateCoreMat = gateCore.material;
 
-    // trunk current
+    // trunk current: water sheet + darker core + surveyed line
     var trunkPts = simPathVectors(fd.trunk);
     var trunkCurve = new T.CatmullRomCurve3(trunkPts);
     var trunkColor = fd.trunkRed ? 0xc8402a : 0x2c5f8a;
-    var trunkTube = new T.Mesh(new T.TubeGeometry(trunkCurve, 90, 15, 10, false), new T.MeshBasicMaterial({
-      color: trunkColor, transparent: true, opacity: fd.trunkRed ? 0.32 : 0.24, depthWrite: false
+    var trunkOuter = new T.Mesh(new T.TubeGeometry(trunkCurve, 110, 20, 12, false), new T.MeshBasicMaterial({
+      color: trunkColor, transparent: true, opacity: fd.trunkRed ? 0.30 : 0.18, depthWrite: false
     }));
-    trunkTube.renderOrder = 2;
-    sim.flowGroup.add(trunkTube);
+    trunkOuter.renderOrder = 2;
+    sim.flowGroup.add(trunkOuter);
+    var trunkCore = new T.Mesh(new T.TubeGeometry(trunkCurve, 110, 8, 10, false), new T.MeshBasicMaterial({
+      color: 0x10233f, transparent: true, opacity: fd.trunkRed ? 0.34 : 0.26, depthWrite: false
+    }));
+    trunkCore.renderOrder = 3;
+    sim.flowGroup.add(trunkCore);
     var trunkLine = new T.Line(new T.BufferGeometry().setFromPoints(trunkPts), new T.LineBasicMaterial({
       color: 0x10233f, transparent: true, opacity: 0.5
     }));
     trunkLine.renderOrder = 3;
     sim.flowGroup.add(trunkLine);
 
-    // surveyed channels and staged reaches stay visible as drafting underlay
+    // tributary inflows become tubes with emitter nodes, not SVG parcels
     fd.claims.forEach(function (c) {
       var pts = simPathVectors(c.path);
-      var line = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({
-        color: new T.Color(c.color), transparent: true, opacity: 0.62
+      var curve = new T.CatmullRomCurve3(pts);
+      var tube = new T.Mesh(new T.TubeGeometry(curve, Math.max(24, pts.length), 6, 8, false), new T.MeshBasicMaterial({
+        color: new T.Color(c.color), transparent: true, opacity: 0.24, depthWrite: false
       }));
-      line.renderOrder = 3;
-      sim.flowGroup.add(line);
+      tube.renderOrder = 2;
+      sim.flowGroup.add(tube);
       var start = pts[0];
-      var label = simLabelSprite(c.agentId, c.color);
-      label.position.set(start.x - 4, start.y + 34, 0);
-      sim.labelGroup.add(label);
+      simAddMesh(sim.flowGroup, new T.RingGeometry(10, 15, 40), new T.Color(c.color), 0.9, start.x, start.y, 1);
+      simAddMesh(sim.flowGroup, new T.CircleGeometry(3.5, 20), 0x10233f, 0.9, start.x, start.y, 1);
+      simAddLabel(c.agentId + (c.files ? ' · ' + c.files + 'f' : ''), c.color, c.anchor.x, c.anchor.y - 42);
     });
+
+    // staged reach is a held pool, not a parcel table
+    simAddLabel('STAGED · WAITLIST', '#9a6a1f', 112, 102);
     fd.waitlist.forEach(function (w) {
       var pts = simPathVectors(w.path);
       var line = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({
-        color: 0x9a6a1f, transparent: true, opacity: 0.55, dashSize: 6, gapSize: 5
+        color: 0x9a6a1f, transparent: true, opacity: 0.6, dashSize: 6, gapSize: 5
       }));
       line.computeLineDistances();
       line.renderOrder = 3;
       sim.flowGroup.add(line);
+      var start = pts[0];
+      simAddMesh(sim.flowGroup, new T.CircleGeometry(5, 18), 0x9a6a1f, 0.85, start.x, start.y, 1);
+      simAddLabel(w.agentId, '#9a6a1f', w.anchor.x, w.anchor.y - 26);
     });
+    if (!fd.waitlist.length) simAddLabel('NO STAGED WORK', '#9a6a1f', 112, 142);
 
     // rapids become pulsing eddies in the particle field
     fd.rapids.forEach(function (rp, i) {
@@ -1426,13 +1398,29 @@ export const DASHBOARD_HTML = `<!doctype html>
       return ['landed', 'rejected', 'failed'].indexOf(t.status) === -1;
     }).slice(0, 8);
     inflight.forEach(function (t, i) {
-      var x = fd.confluence.x - 118 + (i % 4) * 34;
-      var y = fd.confluence.y - 104 - Math.floor(i / 4) * 30;
-      var w = simWorld(x, y);
+      var x = fd.confluence.x - 150 + (i % 4) * 36;
+      var y = fd.confluence.y - 148 - Math.floor(i / 4) * 32;
       var color = t.status === 'merging' ? '#2f6b4f' : t.status === 'resolving' ? '#c8402a' : '#9a6a1f';
-      var label = simLabelSprite(String(t.idx).padStart(2, '0') + ' ' + t.status, color);
-      label.position.set(w.x, w.y, 0);
-      sim.labelGroup.add(label);
+      simAddLabel(String(t.idx).padStart(2, '0') + ' ' + t.status, color, x, y);
+    });
+
+    // key river labels live in the same canvas, not the SVG layer
+    simAddLabel('CONFLUENCE', '#10233f', fd.confluence.x, fd.confluence.y - 132);
+    simAddLabel('CP-01 · SERIAL MERGE QUEUE', '#2c5f8a', fd.confluence.x, fd.confluence.y - 112);
+    simAddLabel('VERIFIED REVISIONS ONLY', '#2f6b4f', fd.confluence.x, fd.confluence.y + 128);
+    simAddLabel('AS-BUILT TRUNK', '#10233f', fd.outflow.x - 128, fd.outflow.y - 52);
+    if (fd.rapids.length) simAddLabel('RAPIDS · RESIDUAL CONFLICTS', '#c8402a', fd.rapids[0].x + 34, fd.rapids[0].y - 62);
+
+    // revision evidence becomes canvas markers along the current
+    var landed = (fd.tasks || []).filter(function (t) { return t.status === 'landed'; }).slice(0, 10);
+    landed.forEach(function (t, i) {
+      var pt = pointAt(fd.trunk, fd.trunk.len * (0.14 + i * 0.07));
+      simAddLabel('OK', '#2f6b4f', pt.x, pt.y - 26);
+    });
+    var rejected = (fd.tasks || []).filter(function (t) { return t.status === 'rejected' || t.status === 'failed'; }).slice(0, 8);
+    rejected.forEach(function (t, i) {
+      var rp = fd.rapids.length ? fd.rapids[i % fd.rapids.length] : fd.confluence;
+      simAddLabel('×', '#c8402a', rp.x + 18 + (i % 3) * 16, rp.y - 36);
     });
 
     sim.gatePath = makePath(sampleCubic(
@@ -1643,6 +1631,17 @@ export const DASHBOARD_HTML = `<!doctype html>
       e.mesh.scale.set(s, 0.62 * s, 1);
       e.mesh.material.opacity = 0.34 + 0.24 * Math.sin(sim.time * 3.1 + e.phase);
     });
+    if (sim.gateMat) {
+      var merging = false;
+      if (sim.fd && sim.fd.tasks) {
+        for (var gi = 0; gi < sim.fd.tasks.length; gi++) {
+          if (sim.fd.tasks[gi].status === 'merging') { merging = true; break; }
+        }
+      }
+      sim.gateMat.color.set(merging ? 0x2f6b4f : 0x10233f);
+      sim.gateMat.opacity = merging ? 0.95 : 0.62 + 0.26 * Math.sin(sim.time * 3);
+    }
+    if (sim.gateCoreMat) sim.gateCoreMat.opacity = 0.62 + 0.28 * Math.sin(sim.time * 4.4);
     sim.renderer.render(sim.scene, sim.camera);
     sim.raf = requestAnimationFrame(simFrame);
   };
