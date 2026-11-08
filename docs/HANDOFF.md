@@ -1,7 +1,7 @@
 # Tributary — handoff checklist
 
-Last updated: Nov 8, 2026 (after the executed-verification gate: the sandbox
-now runs the repo's verify command and returns stdout/stderr/exit code).
+Last updated: Nov 8, 2026 (executed-verification gate shipped; Vultr Docker
+path verified on `nuncio-vultr` at `127.0.0.1:8788`).
 
 ## Where the project stands
 
@@ -32,6 +32,12 @@ Verified on this machine during the latest pass:
 - `npm run mcp` answered a real `initialize` / `tools/list` /
   `tributary_status` handshake over stdio against the Node server.
 - `deploy/setup-vultr.sh` passes `bash -n`.
+- Deployed to `nuncio-vultr` with `deploy/setup-vultr.sh`: `tributary.service`
+  is active on `127.0.0.1:8788`, `/config` reports `mode:"node/vultr"` and
+  `sandbox:"docker"` (`ai=off` until `VULTR_INFERENCE_API_KEY` is set).
+  `npm run simulate` passed on the box and `POST /demo/pack` produced the
+  landed / conflict→resolver→landed / rejected arc with `node verify.cjs`
+  evidence.
 
 Earlier Cloudflare-path verification still stands: SSE + replay, SQLite
 registry storage, MCP server, gate cache, live dashboard, and the offline
@@ -42,18 +48,19 @@ Artifacts shim.
 The active target is the **Vultr Agent Rush Challenge 1 — “Blast Radius
 Zero”** path documented in DECISIONS.md and `docs/VULTR_SUBMISSION.md`:
 many agents, one trunk, zero blast radius. The Node/Vultr control plane is
-implemented and locally verified; the remaining proof is on a real Vultr VM
-with Docker and Vultr Inference configured.
+implemented and verified locally and on a real Vultr VM (`nuncio-vultr`) with
+the Docker sandbox; the remaining proof is public exposure, Vultr Inference,
+and the containment lab.
 
 The Nov 8 positioning pass found the visible field crowded with single-run
 containment products (generate code → sandbox → receipt). Tributary's
 whitespace is fleet-level coordination: claims, waitlists, fork/commit,
 serial speculative merges, sandbox-verified trunk landing, and resolver as
-last resort. The Pattern A execution gap is now closed locally: the sandbox
-gate runs the merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside
-the same container/local child process and returns executed stdout/stderr/
-exit code as task evidence. What remains for Challenge 1 is a visible
-containment probe plus a real Vultr VM with Docker and Vultr Inference.
+last resort. The Pattern A execution gap is closed and proven on Vultr:
+the sandbox gate runs the merged tree's `verify.cjs`/`verify.js` (or `npm
+test`) inside the same throwaway container and returns executed stdout/
+stderr/exit code as task evidence. What remains for Challenge 1 is public
+exposure, `VULTR_INFERENCE_API_KEY`, and a visible containment probe.
 
 ## What is left
 
@@ -62,16 +69,17 @@ containment probe plus a real Vultr VM with Docker and Vultr Inference.
    `rm -rf` on the read-only fs. The video needs one obvious containment
    moment with kernel/Docker evidence.
 
-2. **Deploy to Vultr.** Run `deploy/setup-vultr.sh` on a fresh Cloud Compute
-   VM, or use `deploy/docker-compose.yml` where Docker is already present.
-   Then set `VULTR_INFERENCE_API_KEY` and optionally `VULTR_INFERENCE_MODEL`
-   in `/etc/tributary.env`.
+2. **Expose Tributary and add Vultr Inference.** `nuncio-vultr` already runs
+   `tributary.service` on `127.0.0.1:8788` with `sandbox:"docker"`. Add
+   `VULTR_INFERENCE_API_KEY` (and optionally `VULTR_INFERENCE_MODEL`) to
+   `/etc/tributary.env`, restart the unit, then expose it deliberately —
+   `sudo ufw allow 8788/tcp` for a direct high-port demo URL or a
+   Traefik/Coolify route for a prettier hostname.
 
-3. **Verify the deployed containment boundary.** `/config` should report
-   `sandbox: "docker"` and `ai.provider: "vultr"`. Run `simulate` and
-   `/demo/pack` against the public URL; the demo should show executed sandbox
-   output (`node verify.cjs`), the deterministic conflict → resolver → landed
-   arc, and the verification-failing rejection.
+3. **Verify the public demo path.** On-box verification is done; after
+   exposure, `/config` should report `sandbox: "docker"` and
+   `ai.provider: "vultr"`. Re-run `simulate` and `/demo/pack` against the
+   public URL so the recording uses the same evidence judges will see.
 
 4. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
    dashboard cold open → demo pack → watershed/confluence/rapids → containment
@@ -119,10 +127,10 @@ unchanged — they are plumbing, not prose. See DECISIONS.md.
   cloning the real upstream, mints opaque tokens rather than scoped Cloudflare
   tokens, keeps state in DO/Node memory or sqlite, and serializes merges with a
   single mutex/drain.
-- **Docker sandboxing is not yet proven on a host.** The provider is
-  implemented (`server/sandbox.ts`) and the compose/systemd deploy path mounts
-  the Docker socket, but the latest local verification used
-  `TRIBUTARY_SANDBOX=local` because Docker is not installed on the dev machine.
+- **Docker sandboxing is proven on `nuncio-vultr`, not yet public.** The
+  provider (`server/sandbox.ts`) ran real `node:22-alpine` gate containers on
+  the Vultr VM; the service is currently bound to `127.0.0.1:8788` behind the
+  host firewall, so the public demo URL is still pending.
 - **Vultr Inference is optional but unverified here.** Without
   `VULTR_INFERENCE_API_KEY`, planning/resolution fall back to supplied edits
   and deterministic yield-to-trunk behavior.

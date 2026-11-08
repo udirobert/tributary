@@ -470,3 +470,15 @@ weft/grit/foremerge), dependency-aware merge ordering (air-traffic-control /
 multi-agent-merge-orchestrator), offline-verifiable receipts (Aegis/proctor),
 and a Vultr-Inference explanation pass that summarizes plan → edits → merge →
 verify → verdict for judges.
+
+## Vultr deployment check (Nov 8, 2026)
+
+`nuncio-vultr` was provisioned with `deploy/setup-vultr.sh` using a pre-seeded
+`/etc/tributary.env` for separation: `PORT=8788`, `HOST=127.0.0.1`,
+`TRIBUTARY_SANDBOX=docker`, `TRIBUTARY_DB=/var/lib/tributary/state.db`,
+`SANDBOX_IMAGE=node:22-alpine`. `tributary.service` is active; `/config`
+reports `mode:"node/vultr"`, `sandbox:"docker"`, `ai=off` until
+`VULTR_INFERENCE_API_KEY` is added. `npm run simulate` passed on the box and
+`POST /demo/pack` produced landed / conflict→resolver→landed / rejected with
+`node verify.cjs` evidence. Public exposure is intentionally pending: ufw is
+active and 8788 is localhost-only.

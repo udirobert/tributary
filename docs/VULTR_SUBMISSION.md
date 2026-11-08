@@ -93,7 +93,8 @@ Field notes from the Nov 8 research pass:
   `VULTR_INFERENCE_MODEL` in `/etc/tributary.env`.
 - Sandbox boundary: Docker sibling containers on the same VM; never inside the
   app process.
-- Public demo URL: point DNS/Caddy/nginx at the VM's :8787.
+- Public demo URL: pending — `nuncio-vultr` runs `127.0.0.1:8788` with ufw
+  active; expose via `sudo ufw allow 8788/tcp` or a Traefik/Coolify route.
 
 ## Demo beats for the video
 
@@ -119,11 +120,11 @@ Before recording, `/config` must show `sandbox: "docker"` and
 
 ## Gaps to close before submission
 
-1. **Executed-work proof — done locally.** The Docker/local gate now runs the
-   merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside the same
-   sandbox and returns command/stdout/stderr/exit code as task evidence.
-   Remaining: prove it on the Vultr VM with `sandbox: "docker"` and keep the
-   demo fixture repeatable.
+1. **Executed-work proof — done locally and on Vultr.** The Docker/local gate
+   runs the merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside the
+   same sandbox and returns command/stdout/stderr/exit code as task evidence.
+   Proven on `nuncio-vultr` with `sandbox: "docker"` at `127.0.0.1:8788`;
+   remaining: public URL and repeatable fixture check.
 2. **Demo repo fixture.** The trunk seed now carries `verify.cjs`; keep it
    small and intentional so "agents edit a repo that must stay green" is
    concrete for judges.
@@ -136,8 +137,9 @@ Before recording, `/config` must show `sandbox: "docker"` and
 5. **Receipts.** Gate evidence exists; consider SHA-256 hashing the evidence
    bundle (plan, edits, gate output, container spec, commit SHA) for a
    judge-verifiable receipt.
-6. **Deployed verification.** Run `simulate` and `/demo/pack` against the
-   public Vultr URL before recording.
+6. **Deployed verification — done on-box.** `simulate` and `/demo/pack` ran on
+   `nuncio-vultr` with Docker gates; remaining: repeat against the public URL
+   after exposure.
 
 ## Submission field copy
 
