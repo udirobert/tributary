@@ -388,9 +388,9 @@ export const DASHBOARD_HTML = `<!doctype html>
         </div>
       </div>
       <div class="river-wrap">
-        <svg id="river" viewBox="0 0 1200 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Live river of agent changes converging into the trunk">
+        <svg id="river" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Live river of agent changes converging into the trunk">
           <defs>
-            <linearGradient id="rvTrunkGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1200" y2="0">
+            <linearGradient id="rvTrunkGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0">
               <stop offset="0" stop-color="#b18cff" stop-opacity="0.9"/>
               <stop offset="0.45" stop-color="#4f8cff" stop-opacity="0.95"/>
               <stop offset="1" stop-color="#38e1ff" stop-opacity="1"/>
@@ -715,7 +715,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   };
   var PALETTE = ['#38e1ff', '#4f8cff', '#ffb648', '#3dffb0', '#b18cff', '#ff7ad9', '#2dd4bf', '#ff5d73'];
   var colorFor = function (name, i) { return PALETTE[(hash(String(name || 'x')) + i) % PALETTE.length]; };
-  var trunkY = function (x) { return 318 - (x / 1200) * 78; };
+  var trunkY = function (x) { var t = x / 1000; return 470 - t * 130 + Math.sin(t * Math.PI) * 16 - Math.sin(t * Math.PI * 2) * 8; };
 
   var riverSig = null;
   var renderRiver = function (s) {
@@ -729,54 +729,54 @@ export const DASHBOARD_HTML = `<!doctype html>
     riverSig = sig;
 
     var out = [];
-    var W = 1200, gateX = 132, confluenceX = 742;
-    var trunkD = 'M0,' + trunkY(0).toFixed(1) + ' C 260,' + (trunkY(0) - 8).toFixed(1) +
-      ' 520,' + (trunkY(520) + 6).toFixed(1) + ' 760,' + trunkY(760).toFixed(1) +
-      ' C 920,' + (trunkY(920) - 4).toFixed(1) + ' 1080,' + (trunkY(1080) - 10).toFixed(1) + ' 1200,' + trunkY(1200).toFixed(1);
+    var W = 1000, H = 620, gateX = 92, confluenceX = 600;
+    var pts = [];
+    for (var tx = 0; tx <= 1000; tx += 80) pts.push(tx + ',' + trunkY(tx).toFixed(1));
+    var trunkD = 'M' + pts.join(' L');
 
     // basin grid + watershed gate
-    for (var gx = 80; gx < W; gx += 120) {
-      out.push('<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="430" stroke="rgba(122,162,255,0.045)" stroke-width="1"/>');
+    for (var gx = 80; gx < W; gx += 100) {
+      out.push('<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="' + H + '" stroke="rgba(122,162,255,0.045)" stroke-width="1"/>');
     }
-    for (var gy = 60; gy < 430; gy += 90) {
+    for (var gy = 80; gy < H; gy += 100) {
       out.push('<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy + '" stroke="rgba(122,162,255,0.035)" stroke-width="1"/>');
     }
-    out.push('<line class="rv-gate" x1="' + gateX + '" y1="26" x2="' + gateX + '" y2="404"/>');
-    out.push('<text class="rv-label strong" x="' + (gateX - 12) + '" y="418" text-anchor="end">watershed</text>');
+    out.push('<line class="rv-gate" x1="' + gateX + '" y1="34" x2="' + gateX + '" y2="' + (H - 30) + '"/>');
+    out.push('<text class="rv-label strong" x="' + (gateX - 12) + '" y="' + (H - 14) + '" text-anchor="end">watershed</text>');
 
     // waitlist — amber dashed channels held before the gate
     queued.forEach(function (w, i) {
-      var y = queued.length === 1 ? 120 : 46 + (i * 34);
+      var y = queued.length === 1 ? 150 : 52 + (i * 34);
       var d = 'M0,' + y.toFixed(1) + ' L' + (gateX - 10) + ',' + y.toFixed(1);
       out.push('<path class="rv-wait" d="' + d + '"/>');
-      out.push('<text class="rv-label" x="8" y="' + (y - 6).toFixed(1) + '">' + esc(String(w.agentId).slice(0, 18)) + '</text>');
+      out.push('<text class="rv-label" x="8" y="' + (y - 7).toFixed(1) + '">' + esc(String(w.agentId).slice(0, 18)) + '</text>');
     });
 
     // active claims — colored tributaries converging into the trunk
     var slots = [];
     claims.forEach(function (c, i) {
       var color = colorFor(c.agentId, i);
-      var startY = 96 + ((i * 47) % 190);
-      var cx = confluenceX + ((i % 4) - 1.5) * 74;
+      var startY = 110 + ((i * 53) % 300);
+      var cx = confluenceX + ((i % 4) - 1.5) * 66;
       var cy = trunkY(cx);
-      var d = 'M0,' + startY.toFixed(1) + ' C 210,' + startY.toFixed(1) + ' 430,' + (cy - 60).toFixed(1) + ' ' + cx.toFixed(1) + ',' + cy.toFixed(1);
+      var d = 'M0,' + startY.toFixed(1) + ' C 180,' + startY.toFixed(1) + ' 390,' + (cy - 46).toFixed(1) + ' ' + cx.toFixed(1) + ',' + cy.toFixed(1);
       out.push('<path class="rv-stream-halo" d="' + d + '" stroke="' + color + '" stroke-width="7"/>');
       out.push('<path class="rv-stream" d="' + d + '" stroke="' + color + '" stroke-width="2.6" stroke-dasharray="7 11" style="animation: rvFlow 5.5s linear infinite"/>');
-      out.push('<circle r="3.2" fill="' + color + '"><animateMotion dur="4.2s" begin="' + ((i * 0.7) % 4).toFixed(1) + 's" repeatCount="indefinite" path="' + d + '"/></circle>');
-      out.push('<text class="rv-label" x="8" y="' + (startY - 7).toFixed(1) + '" fill="' + color + '">' + esc(String(c.agentId).slice(0, 18)) + '</text>');
+      out.push('<circle r="3.4" fill="' + color + '"><animateMotion dur="4.2s" begin="' + ((i * 0.7) % 4).toFixed(1) + 's" repeatCount="indefinite" path="' + d + '"/></circle>');
+      out.push('<text class="rv-label" x="8" y="' + (startY - 8).toFixed(1) + '" fill="' + color + '">' + esc(String(c.agentId).slice(0, 18)) + '</text>');
       slots.push({ x: cx, y: cy, color: color });
     });
 
     // rapids — violet turbulence where residual conflicts surface
     if (rapids > 0) {
       for (var r = 0; r < Math.min(rapids, 5); r++) {
-        var rx = confluenceX + 40 + r * 52;
-        var ry = trunkY(rx) - 26 - (r % 2) * 18;
-        var rd = 'M' + (rx - 34) + ',' + ry.toFixed(1) + ' C ' + (rx - 12) + ',' + (ry - 14).toFixed(1) + ' ' + (rx + 12) + ',' + (ry + 14).toFixed(1) + ' ' + (rx + 34) + ',' + ry.toFixed(1);
+        var rx = confluenceX + 34 + r * 46;
+        var ry = trunkY(rx) - 34 - (r % 2) * 20;
+        var rd = 'M' + (rx - 30) + ',' + ry.toFixed(1) + ' C ' + (rx - 11) + ',' + (ry - 13).toFixed(1) + ' ' + (rx + 11) + ',' + (ry + 13).toFixed(1) + ' ' + (rx + 30) + ',' + ry.toFixed(1);
         out.push('<path class="rv-rapids" d="' + rd + '"/>');
-        out.push('<circle class="rv-rapid-dot" cx="' + rx.toFixed(1) + '" cy="' + ry.toFixed(1) + '" r="3"/>');
+        out.push('<circle class="rv-rapid-dot" cx="' + rx.toFixed(1) + '" cy="' + ry.toFixed(1) + '" r="3.2"/>');
       }
-      out.push('<text class="rv-label strong" x="' + (confluenceX + 150) + '" y="120" fill="' + PALETTE[4] + '">rapids · resolver</text>');
+      out.push('<text class="rv-label strong" x="' + (confluenceX + 150) + '" y="132" fill="' + PALETTE[4] + '">rapids · resolver</text>');
     }
 
     // trunk + confluence hub + landed nodes + outflow
@@ -787,21 +787,22 @@ export const DASHBOARD_HTML = `<!doctype html>
       out.push('<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="7" fill="' + p.color + '" opacity="0.28"/>');
       out.push('<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="' + p.color + '"/>');
     });
-    out.push('<circle class="rv-hub" cx="' + confluenceX + '" cy="' + trunkY(confluenceX).toFixed(1) + '" r="14"/>');
-    out.push('<circle class="rv-hub-core" cx="' + confluenceX + '" cy="' + trunkY(confluenceX).toFixed(1) + '" r="6"/>');
-    out.push('<text class="rv-label strong" x="' + confluenceX + '" y="' + (trunkY(confluenceX) - 22).toFixed(1) + '" text-anchor="middle">confluence</text>');
+    var hubY = trunkY(confluenceX);
+    out.push('<circle class="rv-hub" cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" r="14"/>');
+    out.push('<circle class="rv-hub-core" cx="' + confluenceX + '" cy="' + hubY.toFixed(1) + '" r="6"/>');
+    out.push('<text class="rv-label strong" x="' + confluenceX + '" y="' + (hubY - 24).toFixed(1) + '" text-anchor="middle">confluence</text>');
 
     var nodes = Math.min(merges, 9);
     for (var n = 0; n < nodes; n++) {
-      var x = 1010 + n * 20;
+      var x = 812 + n * 18;
       var y = trunkY(x);
       out.push('<circle class="rv-node-halo" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="7"/>');
       out.push('<circle class="rv-node" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.4"/>');
     }
     if (merges > 0) {
-      var fx = 1188, fy = trunkY(fx);
+      var fx = 984, fy = trunkY(fx);
       out.push('<path class="rv-flow" d="M' + (fx - 16) + ',' + fy.toFixed(1) + ' L' + (fx - 2) + ',' + (fy - 5).toFixed(1) + ' M' + (fx - 2) + ',' + (fy - 5).toFixed(1) + ' L' + (fx + 8) + ',' + fy.toFixed(1) + ' M' + (fx - 2) + ',' + (fy - 5).toFixed(1) + ' L' + (fx + 2) + ',' + (fy + 5).toFixed(1) + ' L' + (fx + 8) + ',' + fy.toFixed(1) + '"/>');
-      out.push('<text class="rv-label strong" x="1188" y="' + (fy - 16).toFixed(1) + '" text-anchor="end">verified trunk</text>');
+      out.push('<text class="rv-label strong" x="988" y="' + (fy - 18).toFixed(1) + '" text-anchor="end">verified trunk</text>');
     }
 
     var layer = $('riverLayer');
