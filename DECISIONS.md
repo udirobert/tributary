@@ -509,3 +509,22 @@ without opening the port publicly, `/etc/tributary.env` now uses
 pattern as the other Docker/Traefik services on the box. Public
 `https://tributary.persidian.com/config` returns `sandbox:"docker"` +
 `ai.provider:"vultr"`, and `/` returns the dashboard.
+
+## Rive hero state machine (Nov 8, 2026)
+
+The river stage now has a Rive-driven hero layer (`assets/rive/hero`,
+`scene.rml`) compiled to `build/hero.riv` and embedded as `src/rive-hero.ts`,
+served at `/hero.riv` for both the Worker and Node runtimes. The artboard has
+five looping states — calm / flow / congested / rapids / landed — driven by a
+`mode` state-machine input that `applyState` sets from live registry state
+(resolving → rapids, waitlist → congested, active claims → flow, landed trunk
+→ landed, otherwise calm). The dashboard loads `@rive-app/webgl2` from esm.sh,
+keeps the SVG/canvas evidence layer on top, hides the hero under
+`prefers-reduced-motion`, and falls back silently if the runtime or asset
+fails. Verified locally and on `https://tributary.persidian.com` (canvas sized,
+no page errors).
+
+Caveat: the only Rive Workspace available (`papa`) is on the Free plan, so the
+published `.riv` carries Rive's splash/watermark artboards. It was deployed as
+requested; to ship a clean export, republish `assets/rive/hero` from a Cadet+
+Workspace and regenerate `src/rive-hero.ts`.
