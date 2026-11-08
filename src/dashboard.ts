@@ -56,7 +56,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
-    .plan-fx, .fx-canvas { display: none !important; }
+    .plan-fx, .fx-canvas, .merge-sim { display: none !important; }
   }
   :focus-visible { outline: 2px solid var(--ink2); outline-offset: 2px; border-radius: 4px; }
 
@@ -194,6 +194,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .sheet-wrap { position: relative; flex: 1 1 auto; min-height: 340px; padding: 8px 12px 0; }
   .sheet-wrap svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
   .plan-fx { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
+  .merge-sim { position: absolute; top: 8px; left: 12px; z-index: 2; width: calc(100% - 24px); height: calc(100% - 8px); pointer-events: none; }
   .fx-canvas { position: fixed; inset: 0; z-index: 70; width: 100%; height: 100%; pointer-events: none; }
   .sheet-loading {
     position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
@@ -501,6 +502,7 @@ export const DASHBOARD_HTML = `<!doctype html>
           </g>
           <g id="planLayer" filter="url(#inkRough)"></g>
         </svg>
+        <canvas id="mergeSim" class="merge-sim" aria-hidden="true"></canvas>
         <canvas id="planFX" class="plan-fx" aria-hidden="true"></canvas>
         <div class="sheet-loading" id="sheetLoading" role="status" aria-live="polite">
           <div class="load-plate">
@@ -927,12 +929,6 @@ export const DASHBOARD_HTML = `<!doctype html>
     var t = (x - CONFLUENCE.x) / 520;
     return 560 + Math.sin(t * Math.PI) * 10 - Math.max(0, t) * 18;
   };
-  var trunkD = function () {
-    var pts = [];
-    for (var x = CONFLUENCE.x; x <= 1160; x += 65) pts.push(x + ',' + trunkPoint(x).toFixed(1));
-    return 'M' + pts.join(' L');
-  };
-
   var makePath = function (pts) {
     var cum = [0], len = 0;
     for (var i = 1; i < pts.length; i++) {
@@ -981,7 +977,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     planSig = sig;
 
     var out = [];
-    var fd = { claims: [], waitlist: [], rapids: [], trunk: makePath(sampleCubic([CONFLUENCE.x, CONFLUENCE.y], [820, CONFLUENCE.y - 20], [1010, trunkPoint(1010) + 10], [1160, trunkPoint(1160)], 48)), confluence: CONFLUENCE, outflow: { x: 1140, y: trunkPoint(1140) }, merges: merges, trunkRed: trunkRed };
+    var fd = { claims: [], waitlist: [], rapids: [], trunk: makePath(sampleCubic([CONFLUENCE.x, CONFLUENCE.y], [820, CONFLUENCE.y - 20], [1010, trunkPoint(1010) + 10], [1160, trunkPoint(1160)], 48)), confluence: CONFLUENCE, outflow: { x: 1140, y: trunkPoint(1140) }, merges: merges, trunkRed: trunkRed, tasks: tasks.map(function (t, i) { return { id: t.id, status: t.status, agentId: t.agentId, idx: i + 1 }; }) };
 
     // staged / waitlist parcels
     out.push('<rect class="sp-staged" x="64" y="86" width="352" height="132"/>');
@@ -1014,31 +1010,13 @@ export const DASHBOARD_HTML = `<!doctype html>
       out.push('<path class="sp-channel" d="' + d + '" stroke="' + color + '" stroke-width="2.2" stroke-dasharray="6 8"/>');
     });
 
-    // confluence basin + trunk
-    var bx = CONFLUENCE.x, by = CONFLUENCE.y, td = trunkD();
-    out.push('<ellipse class="sp-basin-fill" cx="' + bx + '" cy="' + by + '" rx="138" ry="66" fill="url(#hatchMid)" opacity="0.55"/>');
-    out.push('<ellipse class="sp-basin-inner" cx="' + bx + '" cy="' + by + '" rx="88" ry="38"/>');
-    out.push('<path class="sp-trunk-edge" d="' + td + '" transform="translate(0 -8)"/>');
-    out.push('<path class="sp-trunk-edge" d="' + td + '" transform="translate(0 8)"/>');
-    out.push('<path class="sp-trunk' + (trunkRed ? ' red' : '') + '" d="' + td + '"/>');
-    out.push('<path class="sp-trunk-core" d="' + td + '" opacity="0.5"/>');
-    out.push('<g class="sp-junction">' +
-      '<line class="sp-cp-line" x1="' + (bx - 26) + '" y1="' + by + '" x2="' + (bx + 26) + '" y2="' + by + '"/>' +
-      '<line class="sp-cp-line" x1="' + bx + '" y1="' + (by - 26) + '" x2="' + bx + '" y2="' + (by + 26) + '"/>' +
-      '<circle class="sp-cp" cx="' + bx + '" cy="' + by + '" r="11"/>' +
-      '<circle cx="' + bx + '" cy="' + by + '" r="3.5" fill="#10233f"/></g>');
+    // The confluence gate and trunk current are rendered by the merge
+    // simulation; the SVG keeps drafting labels and revision evidence only.
+    var bx = CONFLUENCE.x, by = CONFLUENCE.y;
+    var inflight = tasks.filter(function (t) { return ['landed','rejected','failed'].indexOf(t.status) === -1; });
     out.push('<text class="sp-display" x="' + bx + '" y="' + (by - 76) + '" text-anchor="middle">CONFLUENCE</text>');
     out.push('<text class="sp-label strong" x="' + bx + '" y="' + (by - 56) + '" text-anchor="middle">CP-01 · SERIAL MERGE QUEUE</text>');
     out.push('<text class="sp-label" x="' + bx + '" y="' + (by + 104) + '" text-anchor="middle">VERIFIED REVISIONS ONLY</text>');
-
-    // pending drops = in-flight tasks
-    var inflight = tasks.filter(function (t) { return ['landed','rejected','failed'].indexOf(t.status) === -1; });
-    inflight.slice(0, 7).forEach(function (t, i) {
-      var x = CONFLUENCE.x - 42 + i * 14, y = CONFLUENCE.y - 86 - (i % 2) * 12;
-      out.push('<line class="sp-pending" x1="' + x + '" y1="' + (y + 16) + '" x2="' + x + '" y2="' + (CONFLUENCE.y - 24) + '"/>');
-      out.push('<circle cx="' + x + '" cy="' + y + '" r="7" fill="none" stroke="#9a6a1f" stroke-width="1.4"/>');
-      out.push('<text class="sp-label" x="' + x + '" y="' + (y - 12) + '" text-anchor="middle" fill="#9a6a1f">' + esc(String(taskIndex(t.id)).padStart(2, '0')) + '</text>');
-    });
 
     // landed stamps along trunk
     var landed = tasks.filter(function (t) { return t.status === 'landed'; }).slice(0, 9);
@@ -1057,21 +1035,16 @@ export const DASHBOARD_HTML = `<!doctype html>
         '<line class="sp-reject" x1="' + (x + 8) + '" y1="' + (y - 8) + '" x2="' + (x - 8) + '" y2="' + (y + 8) + '"/></g>');
     });
 
-    // rapids clouds
-    var cloudCount = Math.min(rapids + inflight.filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length, 5);
-    for (var r = 0; r < cloudCount; r++) {
+    // rapids feed the simulation turbulence field even though the clouds are
+    // now particle eddies rather than SVG markup.
+    var rapidsActive = Math.min(rapids + inflight.filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length, 5);
+    for (var r = 0; r < rapidsActive; r++) {
       var rx = CONFLUENCE.x + 92 + r * 58, ry = trunkPoint(rx) - 52 - (r % 2) * 18;
       fd.rapids.push({ x: rx, y: ry });
-      var rd = 'M' + (rx - 30) + ',' + ry.toFixed(1) + ' C ' + (rx - 11) + ',' + (ry - 13).toFixed(1) + ' ' + (rx + 11) + ',' + (ry + 13).toFixed(1) + ' ' + (rx + 30) + ',' + ry.toFixed(1) +
-        ' C ' + (rx + 11) + ',' + (ry + 19).toFixed(1) + ' ' + (rx - 11) + ',' + (ry - 19).toFixed(1) + ' ' + (rx - 30) + ',' + ry.toFixed(1) + ' Z';
-      out.push('<path class="sp-cloud" d="' + rd + '" fill="rgba(200,64,42,0.06)"/>');
-      out.push('<circle cx="' + rx.toFixed(1) + '" cy="' + ry.toFixed(1) + '" r="3" fill="#c8402a"/>');
     }
-    if (cloudCount) out.push('<text class="sp-label red" x="' + (CONFLUENCE.x + 120) + '" y="' + (trunkPoint(CONFLUENCE.x + 120) - 78) + '">RAPIDS · RESIDUAL CONFLICTS</text>');
+    if (rapidsActive) out.push('<text class="sp-label red" x="' + (CONFLUENCE.x + 120) + '" y="' + (trunkPoint(CONFLUENCE.x + 120) - 78) + '">RAPIDS · RESIDUAL CONFLICTS</text>');
 
-    // outflow arrow
     var ex = 1120, ey = trunkPoint(ex);
-    out.push('<path class="sp-arrow" d="M' + (ex - 26) + ',' + ey.toFixed(1) + ' L' + (ex - 6) + ',' + (ey - 6).toFixed(1) + ' M' + (ex - 6) + ',' + (ey - 6).toFixed(1) + ' L' + (ex + 8) + ',' + ey.toFixed(1) + ' M' + (ex - 6) + ',' + (ey - 6).toFixed(1) + ' L' + (ex + 2) + ',' + (ey + 6).toFixed(1) + ' L' + (ex + 8) + ',' + ey.toFixed(1) + '"/>');
     out.push('<text class="sp-label strong" x="' + (ex - 30) + '" y="' + (ey - 24) + '" text-anchor="end">AS-BUILT TRUNK</text>');
 
     var layer = $('planLayer');
@@ -1106,6 +1079,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     flow.data = fd || flow.data;
     var d = flow.data;
     if (!d || !d.trunk) return;
+    if (sim && sim.active) { simSetState(d); return; }
     flow.emitters = [];
     flow.byKey = {};
     var claims = d.claims || [];
@@ -1270,6 +1244,511 @@ export const DASHBOARD_HTML = `<!doctype html>
     window.addEventListener('resize', resizePlanFX);
     flow.last = performance.now();
     flow.raf = requestAnimationFrame(framePlanFX);
+  };
+
+  // ---- merge simulation ------------------------------------------------------
+  // A lightweight Three.js viewport layered over the site-plan underlay. The
+  // SVG still owns parcels, labels, stamps, and evidence; this owns the moving
+  // watershed: emitters, queue turbulence, the serial gate, trunk current,
+  // deposits, and conflict bursts.
+  var sim = {
+    active: false, ready: false, THREE: null, canvas: null, renderer: null,
+    scene: null, camera: null, flowGroup: null, labelGroup: null,
+    rippleGroup: null, eddyGroup: null, points: null, pGeo: null,
+    pPos: null, pCol: null, pSize: null, pAlpha: null, emitters: [],
+    particles: [], ripples: [], eddies: [], fd: null, gatePath: null,
+    turb: 0, lastMerges: -1, raf: null, last: 0, time: 0, w: 0, h: 0,
+    dpr: 1, hw: W / 2, hh: H / 2, MAXP: 2400, prevStatus: {}
+  };
+
+  var simWorld = function (x, y) {
+    return { x: x - W / 2, y: H / 2 - y };
+  };
+  var simWorldV = function (p) {
+    var w = simWorld(p[0], p[1]);
+    return new sim.THREE.Vector3(w.x, w.y, 0);
+  };
+  var simHex = function (c) {
+    var n = parseInt(String(c).replace('#', ''), 16);
+    if (isNaN(n)) n = 0x22304a;
+    return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+  };
+  var simDisposeObject = function (obj) {
+    obj.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        var mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(function (m) {
+          if (m.map) m.map.dispose();
+          if (m.dispose) m.dispose();
+        });
+      }
+    });
+  };
+  var simClearGroup = function (g) {
+    while (g && g.children.length) {
+      var c = g.children.pop();
+      simDisposeObject(c);
+      g.remove(c);
+    }
+  };
+  var simLabelSprite = function (text, color) {
+    var T = sim.THREE;
+    var label = String(text || '').slice(0, 22);
+    var pad = 22, fs = 22, h = 46;
+    var cvs = document.createElement('canvas');
+    var ctx = cvs.getContext('2d');
+    ctx.font = '700 ' + fs + 'px "IBM Plex Mono", monospace';
+    var tw = Math.ceil(ctx.measureText(label).width);
+    cvs.width = Math.max(96, tw + pad * 2) * 2;
+    cvs.height = h * 2;
+    ctx = cvs.getContext('2d');
+    ctx.scale(2, 2);
+    ctx.font = '700 ' + fs + 'px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color || '#22304a';
+    ctx.fillText(label, cvs.width / 4, h / 2);
+    var tex = new T.CanvasTexture(cvs);
+    tex.anisotropy = 2;
+    var mat = new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+    var sp = new T.Sprite(mat);
+    sp.scale.set(cvs.width / 2, cvs.height / 2, 1);
+    sp.center.set(0.5, 0.5);
+    sp.renderOrder = 5;
+    return sp;
+  };
+
+  var simResize = function () {
+    var cvs = sim.canvas;
+    if (!cvs || !cvs.parentElement || !sim.renderer) return;
+    var w = cvs.clientWidth, h = cvs.clientHeight;
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (!w || !h) return;
+    sim.w = w; sim.h = h; sim.dpr = dpr;
+    sim.renderer.setPixelRatio(dpr);
+    sim.renderer.setSize(w, h, false);
+    var aspect = w / h, hw = W / 2, hh = H / 2;
+    if (aspect > W / H) { hh = H / 2; hw = hh * aspect; }
+    else { hw = W / 2; hh = hw / aspect; }
+    sim.hw = hw; sim.hh = hh;
+    sim.camera.left = -hw; sim.camera.right = hw;
+    sim.camera.top = hh; sim.camera.bottom = -hh;
+    sim.camera.updateProjectionMatrix();
+    if (sim.points && sim.points.material && sim.points.material.uniforms) {
+      sim.points.material.uniforms.uDpr.value = dpr;
+    }
+  };
+
+  var simPathVectors = function (path) {
+    var pts = [];
+    for (var i = 0; i < path.pts.length; i++) pts.push(simWorldV(path.pts[i]));
+    return pts;
+  };
+  var simAddMesh = function (g, geo, color, opacity, x, y, sy) {
+    var T = sim.THREE;
+    var m = new T.Mesh(geo, new T.MeshBasicMaterial({
+      color: color, transparent: true, opacity: opacity,
+      side: T.DoubleSide, depthWrite: false
+    }));
+    m.position.set(x, y, 0);
+    if (sy) m.scale.set(1, sy, 1);
+    m.renderOrder = 2;
+    g.add(m);
+    return m;
+  };
+
+  var simSyncFlow = function (fd) {
+    var T = sim.THREE;
+    simClearGroup(sim.flowGroup);
+    simClearGroup(sim.labelGroup);
+    simClearGroup(sim.rippleGroup);
+    simClearGroup(sim.eddyGroup);
+    sim.ripples = [];
+    sim.eddies = [];
+    var cw = simWorld(fd.confluence.x, fd.confluence.y);
+
+    // basin, gate, and serial checkpoint
+    var basin = simAddMesh(sim.flowGroup, new T.CircleGeometry(136, 72), 0xf5efe2, 0.94, cw.x, cw.y, 0.58);
+    basin.renderOrder = 1;
+    simAddMesh(sim.flowGroup, new T.RingGeometry(92, 101, 72), 0x10233f, 0.42, cw.x, cw.y, 0.58);
+    simAddMesh(sim.flowGroup, new T.RingGeometry(56, 62, 64), 0x2c5f8a, 0.5, cw.x, cw.y, 0.58);
+    simAddMesh(sim.flowGroup, new T.RingGeometry(17, 25, 56), 0x10233f, 0.9, cw.x, cw.y, 1);
+    simAddMesh(sim.flowGroup, new T.CircleGeometry(7, 28), 0x10233f, 0.95, cw.x, cw.y, 1);
+
+    // trunk current
+    var trunkPts = simPathVectors(fd.trunk);
+    var trunkCurve = new T.CatmullRomCurve3(trunkPts);
+    var trunkColor = fd.trunkRed ? 0xc8402a : 0x2c5f8a;
+    var trunkTube = new T.Mesh(new T.TubeGeometry(trunkCurve, 90, 15, 10, false), new T.MeshBasicMaterial({
+      color: trunkColor, transparent: true, opacity: fd.trunkRed ? 0.32 : 0.24, depthWrite: false
+    }));
+    trunkTube.renderOrder = 2;
+    sim.flowGroup.add(trunkTube);
+    var trunkLine = new T.Line(new T.BufferGeometry().setFromPoints(trunkPts), new T.LineBasicMaterial({
+      color: 0x10233f, transparent: true, opacity: 0.5
+    }));
+    trunkLine.renderOrder = 3;
+    sim.flowGroup.add(trunkLine);
+
+    // surveyed channels and staged reaches stay visible as drafting underlay
+    fd.claims.forEach(function (c) {
+      var pts = simPathVectors(c.path);
+      var line = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({
+        color: new T.Color(c.color), transparent: true, opacity: 0.62
+      }));
+      line.renderOrder = 3;
+      sim.flowGroup.add(line);
+      var start = pts[0];
+      var label = simLabelSprite(c.agentId, c.color);
+      label.position.set(start.x - 4, start.y + 34, 0);
+      sim.labelGroup.add(label);
+    });
+    fd.waitlist.forEach(function (w) {
+      var pts = simPathVectors(w.path);
+      var line = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({
+        color: 0x9a6a1f, transparent: true, opacity: 0.55, dashSize: 6, gapSize: 5
+      }));
+      line.computeLineDistances();
+      line.renderOrder = 3;
+      sim.flowGroup.add(line);
+    });
+
+    // rapids become pulsing eddies in the particle field
+    fd.rapids.forEach(function (rp, i) {
+      var w = simWorld(rp.x, rp.y);
+      var mesh = simAddMesh(sim.eddyGroup, new T.RingGeometry(13, 19, 48), 0xc8402a, 0.5, w.x, w.y, 0.62);
+      sim.eddies.push({ mesh: mesh, phase: i * 1.37 });
+    });
+
+    // readable queue labels near the gate
+    var inflight = (fd.tasks || []).filter(function (t) {
+      return ['landed', 'rejected', 'failed'].indexOf(t.status) === -1;
+    }).slice(0, 8);
+    inflight.forEach(function (t, i) {
+      var x = fd.confluence.x - 118 + (i % 4) * 34;
+      var y = fd.confluence.y - 104 - Math.floor(i / 4) * 30;
+      var w = simWorld(x, y);
+      var color = t.status === 'merging' ? '#2f6b4f' : t.status === 'resolving' ? '#c8402a' : '#9a6a1f';
+      var label = simLabelSprite(String(t.idx).padStart(2, '0') + ' ' + t.status, color);
+      label.position.set(w.x, w.y, 0);
+      sim.labelGroup.add(label);
+    });
+
+    sim.gatePath = makePath(sampleCubic(
+      [fd.confluence.x - 150, fd.confluence.y - 42],
+      [fd.confluence.x - 84, fd.confluence.y - 96],
+      [fd.confluence.x - 28, fd.confluence.y - 74],
+      [fd.confluence.x, fd.confluence.y], 30
+    ));
+  };
+
+  var simClaimPathFor = function (fd, agentId) {
+    for (var i = 0; i < fd.claims.length; i++) {
+      if (fd.claims[i].agentId === agentId) return fd.claims[i].path;
+    }
+    return null;
+  };
+  var simTaskSpec = function (fd, t) {
+    var status = t.status || 'working';
+    var path = simClaimPathFor(fd, t.agentId);
+    var hold = false, speed = 120, color = '#2c5f8a', wobble = 5, freq = 1.7, rate = 8;
+    if (status === 'queued' || status === 'resolving') {
+      path = sim.gatePath; hold = true; speed = status === 'resolving' ? 42 : 18;
+      color = status === 'resolving' ? '#c8402a' : '#9a6a1f'; wobble = 9; freq = 2.6; rate = 7;
+    } else if (status === 'merging') {
+      path = fd.trunk; hold = false; speed = 230; color = '#2f6b4f'; wobble = 4; freq = 2.2; rate = 11;
+    } else if (status === 'working' || status === 'planning' || status === 'claiming') {
+      if (!path) { path = sim.gatePath; hold = false; speed = 70; }
+      color = '#2c5f8a'; speed = status === 'planning' ? 70 : 125; wobble = 6; freq = 1.8; rate = 8;
+    }
+    return { path: path, hold: hold, speed: speed, color: color, wobble: wobble, freq: freq, rate: rate, nextPath: hold ? null : fd.trunk };
+  };
+  var simSyncEmitters = function (fd) {
+    sim.emitters = [];
+    sim.emitters.push({ key: 'trunk', path: fd.trunk, rate: Math.min(46, 22 + fd.claims.length * 3 + fd.merges), color: '#22304a', size: 5, alpha: 0.46, speed: 150, wobble: 4, freq: 1.1, phase: 0.4, hold: false, nextPath: null });
+    fd.claims.forEach(function (c, i) {
+      sim.emitters.push({ key: 'claim:' + c.agentId, path: c.path, rate: 7 + (i % 3), color: c.color, size: 6, alpha: 0.9, speed: 175, wobble: 7, freq: 1.6 + i * 0.11, phase: i * 0.7, hold: false, nextPath: fd.trunk });
+    });
+    fd.waitlist.forEach(function (w, i) {
+      sim.emitters.push({ key: 'wait:' + w.agentId, path: w.path, rate: 2.5, color: '#9a6a1f', size: 5, alpha: 0.66, speed: 46, wobble: 3, freq: 2.1, phase: i * 0.9, hold: true, nextPath: null });
+    });
+    (fd.tasks || []).forEach(function (t) {
+      if (['landed', 'rejected', 'failed'].indexOf(t.status) !== -1) return;
+      var spec = simTaskSpec(fd, t);
+      if (!spec.path) return;
+      sim.emitters.push({ key: 'task:' + t.id, path: spec.path, rate: spec.rate, color: spec.color, size: 7, alpha: 0.95, speed: spec.speed, wobble: spec.wobble, freq: spec.freq, phase: (t.idx || 1) * 0.53, hold: spec.hold, nextPath: spec.nextPath });
+    });
+  };
+
+  var simAddRipple = function (x, y, color) {
+    var T = sim.THREE, w = simWorld(x, y);
+    var mesh = new T.Mesh(new T.RingGeometry(0.82, 1, 56), new T.MeshBasicMaterial({
+      color: color || 0x2c5f8a, transparent: true, opacity: 0.75,
+      side: T.DoubleSide, depthWrite: false
+    }));
+    mesh.position.set(w.x, w.y, 0);
+    mesh.renderOrder = 4;
+    sim.rippleGroup.add(mesh);
+    sim.ripples.push({ mesh: mesh, r: 10, vr: 78, a: 0.75 });
+  };
+  var simSpawnBurstAt = function (x, y, n, color) {
+    for (var i = 0; i < n; i++) {
+      sim.particles.push({
+        mode: 'burst', x: x, y: y,
+        vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 95 - 18,
+        life: 0.75 + Math.random() * 0.55, decay: 1.05 + Math.random() * 0.85,
+        size: 4 + Math.random() * 5, rgb: simHex(color || '#c8402a'), alpha: 0.9
+      });
+    }
+  };
+  var simSpawnDeposit = function (fd) {
+    for (var i = 0; i < 22; i++) {
+      sim.particles.push({
+        mode: 'flow', path: fd.trunk, dist: Math.random() * fd.trunk.len * 0.55,
+        dir: 1, speed: 190 + Math.random() * 90, wobble: 3.5,
+        freq: 1.4 + Math.random() * 0.5, phase: Math.random() * 6.28,
+        size: 6, rgb: simHex(i % 3 ? '#2f6b4f' : '#22304a'), alpha: 0.86,
+        hold: false, nextPath: null, nextDist: 0, life: 1, decay: 0
+      });
+    }
+    simAddRipple(fd.confluence.x, fd.confluence.y, 0x2c5f8a);
+    simAddRipple(fd.outflow.x, fd.outflow.y, 0x2f6b4f);
+  };
+  var simSyncTasks = function (fd) {
+    var seen = {};
+    (fd.tasks || []).forEach(function (t) {
+      seen[t.id] = t.status;
+      var prev = sim.prevStatus[t.id];
+      var terminal = ['landed', 'rejected', 'failed'].indexOf(t.status) !== -1;
+      if (prev && terminal && ['landed', 'rejected', 'failed'].indexOf(prev) === -1) {
+        if (prev !== t.status) {
+          if (t.status === 'landed') simSpawnDeposit(fd);
+          if (t.status === 'rejected' || t.status === 'failed') {
+            var rp = fd.rapids.length ? fd.rapids[0] : fd.confluence;
+            simSpawnBurstAt(rp.x, rp.y - 20, 18, '#c8402a');
+          }
+        }
+      }
+      sim.prevStatus[t.id] = t.status;
+    });
+    Object.keys(sim.prevStatus).forEach(function (id) {
+      if (!(id in seen)) delete sim.prevStatus[id];
+    });
+  };
+
+  var simSpawnFlow = function (e) {
+    var p = {
+      mode: 'flow', path: e.path, dist: e.hold ? Math.random() * e.path.len : Math.random() * Math.min(e.path.len, 80),
+      dir: 1, speed: e.speed * (0.85 + Math.random() * 0.3), wobble: e.wobble,
+      freq: e.freq, phase: e.phase + Math.random() * 6.28, size: e.size,
+      rgb: simHex(e.color), alpha: e.alpha, hold: e.hold,
+      nextPath: e.nextPath || null, nextDist: 0, life: 1, decay: 0,
+      x: 0, y: 0, vx: 0, vy: 0
+    };
+    sim.particles.push(p);
+  };
+  var simStep = function (dt) {
+    sim.emitters.forEach(function (e) {
+      e.acc = (e.acc || 0) + e.rate * dt;
+      while (e.acc >= 1) { e.acc -= 1; simSpawnFlow(e); }
+    });
+    var rapidsN = sim.fd ? sim.fd.rapids.length : 0;
+    var gateN = 0;
+    if (sim.fd) gateN = (sim.fd.tasks || []).filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length;
+    sim.burstAcc = (sim.burstAcc || 0) + (rapidsN * 7 + gateN * 3) * dt;
+    while (sim.burstAcc >= 1 && sim.fd) {
+      sim.burstAcc -= 1;
+      var rp = sim.fd.rapids.length ? sim.fd.rapids[(Math.random() * sim.fd.rapids.length) | 0] : sim.fd.confluence;
+      simSpawnBurstAt(rp.x + (Math.random() - 0.5) * 36, rp.y + (Math.random() - 0.5) * 30, 2, '#c8402a');
+    }
+
+    for (var i = sim.particles.length - 1; i >= 0; i--) {
+      var p = sim.particles[i];
+      if (p.mode === 'burst') {
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.985; p.vy = p.vy * 0.985 - 8 * dt;
+        p.life -= p.decay * dt;
+        if (p.life <= 0) sim.particles.splice(i, 1);
+        continue;
+      }
+      var path = p.path;
+      if (p.hold) {
+        p.dist += Math.sin(sim.time * p.freq + p.phase) * p.speed * dt;
+        if (p.dist < 0) p.dist = 0;
+        if (p.dist > path.len) p.dist = path.len;
+      } else {
+        p.dist += p.speed * dt;
+        if (p.dist >= path.len) {
+          if (p.nextPath) { p.path = p.nextPath; p.dist = p.nextDist; p.nextPath = null; p.speed *= 0.92; }
+          else p.dist = 0;
+        }
+      }
+      var pt = pointAt(path, Math.max(0, Math.min(path.len, p.dist)));
+      var nx = -Math.sin(pt.a), ny = Math.cos(pt.a);
+      var off = Math.sin(sim.time * p.freq + p.phase) * p.wobble;
+      var turb = sim.turb || 0;
+      off += Math.sin(sim.time * 5.1 + p.phase * 2.3) * turb * 13;
+      var dx = pt.x - (sim.fd ? sim.fd.confluence.x : W / 2);
+      var dy = pt.y - (sim.fd ? sim.fd.confluence.y : H / 2);
+      var rr = Math.sqrt(dx * dx + dy * dy);
+      var swirl = turb * 26 * Math.max(0, 1 - rr / 240) * Math.sin(sim.time * 2.4 + p.phase);
+      p.x = pt.x + nx * off + (-ny) * swirl;
+      p.y = pt.y + ny * off + nx * swirl + Math.sin(sim.time * 0.9 + p.phase) * 1.4;
+    }
+    if (sim.particles.length > sim.MAXP) sim.particles.splice(0, sim.particles.length - sim.MAXP);
+
+    for (var r = sim.ripples.length - 1; r >= 0; r--) {
+      var rp2 = sim.ripples[r];
+      rp2.r += rp2.vr * dt; rp2.a -= dt * 0.72;
+      rp2.mesh.scale.set(rp2.r, rp2.r, 1);
+      rp2.mesh.material.opacity = Math.max(0, rp2.a);
+      if (rp2.a <= 0) {
+        sim.rippleGroup.remove(rp2.mesh);
+        rp2.mesh.geometry.dispose(); rp2.mesh.material.dispose();
+        sim.ripples.splice(r, 1);
+      }
+    }
+  };
+
+  var simWriteParticles = function () {
+    var count = Math.min(sim.particles.length, sim.MAXP);
+    for (var i = 0; i < count; i++) {
+      var p = sim.particles[i], w = simWorld(p.x, p.y);
+      sim.pPos[i * 3] = w.x; sim.pPos[i * 3 + 1] = w.y; sim.pPos[i * 3 + 2] = 0;
+      sim.pCol[i * 3] = p.rgb[0]; sim.pCol[i * 3 + 1] = p.rgb[1]; sim.pCol[i * 3 + 2] = p.rgb[2];
+      sim.pSize[i] = p.size * (p.mode === 'burst' ? (0.7 + p.life * 0.5) : (0.9 + 0.18 * Math.sin(sim.time * 3 + (p.phase || 0))));
+      var fade = 1;
+      if (p.mode === 'flow' && p.path && !p.hold) {
+        if (p.dist < 8) fade = p.dist / 8;
+        else if (p.dist > p.path.len - 10) fade = Math.max(0, (p.path.len - p.dist) / 10);
+      }
+      if (p.mode === 'burst') fade = Math.max(0, p.life);
+      sim.pAlpha[i] = p.alpha * fade;
+    }
+    sim.pGeo.setDrawRange(0, count);
+    sim.pGeo.attributes.position.needsUpdate = true;
+    sim.pGeo.attributes.aColor.needsUpdate = true;
+    sim.pGeo.attributes.aSize.needsUpdate = true;
+    sim.pGeo.attributes.aAlpha.needsUpdate = true;
+  };
+
+  var simFrame = function (ts) {
+    if (!sim.active) return;
+    var dt = Math.min(0.05, (ts - sim.last) / 1000 || 0.016);
+    sim.last = ts; sim.time += dt;
+    simStep(dt);
+    simWriteParticles();
+    sim.eddies.forEach(function (e) {
+      var s = 1 + 0.18 * Math.sin(sim.time * 4 + e.phase);
+      e.mesh.scale.set(s, 0.62 * s, 1);
+      e.mesh.material.opacity = 0.34 + 0.24 * Math.sin(sim.time * 3.1 + e.phase);
+    });
+    sim.renderer.render(sim.scene, sim.camera);
+    sim.raf = requestAnimationFrame(simFrame);
+  };
+
+  var simSetState = function (fd) {
+    if (!sim.ready || !fd || !fd.trunk) return;
+    sim.fd = fd;
+    var resolving = (fd.tasks || []).filter(function (t) { return t.status === 'resolving' || t.status === 'merging'; }).length;
+    sim.turb = Math.min(1, (fd.rapids.length + resolving) / 4);
+    simSyncFlow(fd);
+    simSyncEmitters(fd);
+    simSyncTasks(fd);
+    if (sim.lastMerges < 0) sim.lastMerges = fd.merges || 0;
+    else if ((fd.merges || 0) > sim.lastMerges) {
+      for (var i = sim.lastMerges; i < fd.merges; i++) {
+        simAddRipple(fd.confluence.x, fd.confluence.y, 0x2c5f8a);
+        simAddRipple(fd.outflow.x, fd.outflow.y, 0x2f6b4f);
+      }
+      sim.lastMerges = fd.merges;
+    } else if ((fd.merges || 0) < sim.lastMerges) sim.lastMerges = fd.merges;
+  };
+
+  var simVert = [
+    'attribute vec3 aColor;',
+    'attribute float aSize;',
+    'attribute float aAlpha;',
+    'uniform float uDpr;',
+    'varying vec3 vColor;',
+    'varying float vAlpha;',
+    'void main(){',
+    '  vColor=aColor; vAlpha=aAlpha;',
+    '  vec4 mv=modelViewMatrix*vec4(position,1.0);',
+    '  gl_Position=projectionMatrix*mv;',
+    '  gl_PointSize=aSize*uDpr;',
+    '}'
+  ].join(' ');
+  var simFrag = [
+    'precision mediump float;',
+    'varying vec3 vColor;',
+    'varying float vAlpha;',
+    'void main(){',
+    '  float d=length(gl_PointCoord-vec2(0.5));',
+    '  float a=smoothstep(0.5,0.12,d)*vAlpha;',
+    '  if(a<0.012) discard;',
+    '  gl_FragColor=vec4(vColor,a);',
+    '}'
+  ].join(' ');
+
+  var initMergeSim = function (done) {
+    var cvs = $('mergeSim');
+    if (!cvs || reducedMotion() || !cvs.getContext) { done(false); return; }
+    if (sim.active) { done(true); return; }
+    import('https://esm.sh/three@0.160.0').then(function (THREE) {
+      try {
+        sim.THREE = THREE;
+        sim.canvas = cvs;
+        sim.renderer = new THREE.WebGLRenderer({ canvas: cvs, alpha: true, antialias: true, powerPreference: 'high-performance' });
+        sim.renderer.setClearColor(0x000000, 0);
+        sim.scene = new THREE.Scene();
+        sim.camera = new THREE.OrthographicCamera(-sim.hw, sim.hw, sim.hh, -sim.hh, 0.1, 100);
+        sim.camera.position.z = 10;
+        sim.flowGroup = new THREE.Group();
+        sim.labelGroup = new THREE.Group();
+        sim.rippleGroup = new THREE.Group();
+        sim.eddyGroup = new THREE.Group();
+        sim.scene.add(sim.flowGroup); sim.scene.add(sim.eddyGroup);
+        sim.scene.add(sim.rippleGroup); sim.scene.add(sim.labelGroup);
+        sim.pGeo = new THREE.BufferGeometry();
+        sim.pPos = new Float32Array(sim.MAXP * 3);
+        sim.pCol = new Float32Array(sim.MAXP * 3);
+        sim.pSize = new Float32Array(sim.MAXP);
+        sim.pAlpha = new Float32Array(sim.MAXP);
+        sim.pGeo.setAttribute('position', new THREE.BufferAttribute(sim.pPos, 3).setUsage(THREE.DynamicDrawUsage));
+        sim.pGeo.setAttribute('aColor', new THREE.BufferAttribute(sim.pCol, 3).setUsage(THREE.DynamicDrawUsage));
+        sim.pGeo.setAttribute('aSize', new THREE.BufferAttribute(sim.pSize, 1).setUsage(THREE.DynamicDrawUsage));
+        sim.pGeo.setAttribute('aAlpha', new THREE.BufferAttribute(sim.pAlpha, 1).setUsage(THREE.DynamicDrawUsage));
+        sim.pGeo.setDrawRange(0, 0);
+        var mat = new THREE.ShaderMaterial({
+          uniforms: { uDpr: { value: sim.dpr } },
+          vertexShader: simVert, fragmentShader: simFrag,
+          transparent: true, depthTest: false, depthWrite: false
+        });
+        sim.points = new THREE.Points(sim.pGeo, mat);
+        sim.points.frustumCulled = false;
+        sim.points.renderOrder = 6;
+        sim.scene.add(sim.points);
+        sim.active = true; sim.ready = true;
+        simResize();
+        if (window.ResizeObserver && cvs.parentElement) new ResizeObserver(simResize).observe(cvs.parentElement);
+        window.addEventListener('resize', simResize);
+        sim.last = performance.now();
+        sim.raf = requestAnimationFrame(simFrame);
+        if (flow.data) simSetState(flow.data);
+        done(true);
+      } catch (err) {
+        sim.active = false; sim.ready = false;
+        done(false);
+      }
+    }).catch(function () { done(false); });
+  };
+
+  var initCenterFX = function () {
+    if (reducedMotion()) { initPlanFX(); return; }
+    initMergeSim(function (ok) {
+      if (!ok) initPlanFX();
+    });
   };
 
   // ---- state ---------------------------------------------------------------
@@ -1551,7 +2030,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     })
     .catch(function () {});
 
-  initPlanFX();
+  initCenterFX();
   if (location.search.indexOf('replay') !== -1) startReplay(); else startStream();
 })();
 </script>
