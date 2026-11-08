@@ -2,13 +2,17 @@
 
 ![Tributary — many tributaries converging into one verified trunk](docs/hero.svg)
 
-A coordination layer for thousands of agents working on one codebase — built for
-Cloudflare's "Build the next GitHub" challenge (Oct 2026).
+A coordination layer for many AI agents working on one codebase — currently
+aimed at Vultr's Agent Rush Challenge 1, "Blast Radius Zero," with the
+Cloudflare "Build the next GitHub" runtime kept as an alternate.
 
-**Many tributaries, one trunk.** Every agent's change is a **tributary**: it is
-declared at the **watershed**, joins the trunk at the **confluence**, and only
-the residual reaches the **rapids**. The metaphor is the architecture — the
-three stages below are named for it.
+**Many tributaries, one trunk — zero blast radius.** Every agent's change is a
+**tributary**: it is declared at the **watershed**, joins the trunk at the
+**confluence**, and only the residual reaches the **rapids**. For Vultr Agent
+Rush the pitch is fleet-level containment: not just "one run is sandboxed," but
+"many agents can edit one repo without overlapping work, broken merges, or
+unverified trunk landings." The metaphor is the architecture — the three
+stages below are named for it.
 
 **Thesis: conflicts are a scheduling problem first and a negotiation problem
 last.** Tributary inverts the PR model: there are no pull requests. The unit of
@@ -122,6 +126,40 @@ reach the host, the control plane's secrets, or the network — and the
 container is destroyed either way. A rejected merge rewinds trunk and routes
 to the rapids, so the feed shows `claim → merge → sandbox reject → resolver`
 when an agent ships broken code.
+
+### Vultr Agent Rush positioning
+
+Challenge 1 asks for a web-based agent that does real work inside a Vultr
+sandbox and returns verifiable output. Tributary's differentiated answer is
+that the dangerous part is not only executing code — it is **many agents
+editing the same repo at once**. The product story is therefore:
+
+> Tributary is the merge control plane for agent swarms: it schedules
+> conflicting work before it starts, integrates changes serially, and proves
+> the merged tree in a disposable Vultr sandbox — many agents, one trunk, zero
+> blast radius.
+
+Rubric fit:
+
+- **Application of Technology** — Vultr Serverless Inference plans edits and
+  resolves residual conflicts; Docker executes the merged-tree gate;
+  `isomorphic-git` performs real three-way merges; task records carry gate
+  evidence.
+- **Presentation** — live dashboard with claims, waitlist, river, task cards,
+  sandbox evidence, and SSE feed; deterministic `/demo/pack`.
+- **Business Value** — teams running multiple coding agents on one repo need
+  conflict scheduling and verified merges; Tributary reduces wasted agent
+  compute, prevents broken trunk landings, and produces auditable merge
+  evidence.
+- **Originality** — "conflicts are a scheduling problem first and a negotiation
+  problem last" is a different frame from the crowded single-run sandbox
+  products in the current field.
+
+Current gap to close before submission: the sandbox gate contains and checks
+the merged tree, but it still needs to run a real verification command
+(tests/script) and return stdout/stderr/exit code as product output. The demo
+should also include a visible containment probe through the same sandbox path.
+See `docs/VULTR_SUBMISSION.md` for the submission-aligned version.
 
 ### Deploying on Vultr
 
@@ -253,11 +291,17 @@ What's still simulated or unverified:
   `TRIBUTARY_SANDBOX=local` because Docker is not installed on the dev
   machine. Vultr Inference was likewise unconfigured, so AI paths used their
   deterministic fallbacks.
+- ⚠️ The sandbox gate is real containment, but it currently compiles/checks
+  the merged tree rather than executing the agent's code and returning
+  stdout/stderr as product output. Challenge 1 needs that executed-work proof
+  (repo tests or a verify script inside the same container) plus a visible
+  containment probe.
 - ⚠️ Resolutions are whole-file (both sides' full content, one AI call per
   file), not per-hunk. Fine for the fixture; a real tree would want hunk-level
-  granularity. In Node/Vultr mode the executed gate **is** real: the merged
-  tree is materialized into a throwaway container and checked there
-  (`server/sandbox.ts`). The in-process semantic gate is a real AST check but
+  granularity. In Node/Vultr mode the merged tree is materialized into a
+  throwaway container and checked there (`server/sandbox.ts`); the remaining
+  Challenge-1 gap is executing a real verification command inside that same
+  container and returning stdout/stderr as product output. The in-process semantic gate is a real AST check but
   scope-limited: exported-function arity across the merged tree,
   bare-identifier calls only — the production shape is the repo's own
   toolchain (tsc, eslint, test suite) in the same sandbox.

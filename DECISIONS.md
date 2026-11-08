@@ -392,3 +392,28 @@ before enqueueing any merge — so both `src/index.js` tributaries still fork
 the same pre-merge trunk and the confluence produces the conflict on demand.
 Verified: demo pack lands task A, conflicts task B into the rapids, rejects
 broken `src/db.js` in the sandbox gate, then lands B's verified resolution.
+
+## Vultr Agent Rush positioning (Nov 8, 2026)
+
+Research for Challenge 1 ("Blast Radius Zero") shows the visible field is
+crowded with single-run containment products: generate code → run it in
+Docker/gVisor → return a receipt. Those are table stakes, not differentiation.
+Tributary's whitespace is fleet-level coordination: claims, waitlists,
+fork/commit, serial speculative merges, sandbox-verified trunk landing, and a
+resolver that is deliberately last resort.
+
+**Decision:** keep the multi-agent merge-control thesis as the primary Vultr
+story, but do not submit it as "just another sandbox runner." The submission
+must translate the architecture into Pattern A proof: model writes code → code
+executes inside a Vultr Docker sandbox → verifiable output returns. The current
+gap is that `server/sandbox.ts` contains and checks the merged tree but does
+not yet run a real verification command and return stdout/stderr as product
+output. Before submission we need: an executed gate (repo tests or
+`verify.mjs`), a small demo repo fixture, a visible containment probe, an
+explanation step powered by Vultr Inference, and deployed `/config` showing
+`sandbox: "docker"` + `ai.provider: "vultr"`.
+
+Docs aligned: `README.md` now leads with "many agents, one trunk, zero blast
+radius"; `docs/VULTR_SUBMISSION.md` carries the submission-aligned pitch,
+rubric map, demo beats, and gaps; `docs/HANDOFF.md` reorders the remaining
+work around closing the Pattern A execution gap before deployment/demo.

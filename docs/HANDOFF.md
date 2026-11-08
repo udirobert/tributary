@@ -37,41 +37,63 @@ Artifacts shim.
 ## Current priority
 
 The active target is the **Vultr Agent Rush Challenge 1 — “Blast Radius
-Zero”** path documented in DECISIONS.md: model writes code → code runs in a
-container → verifiable output. The Node/Vultr control plane is implemented
-and locally verified; the remaining proof is on a real Vultr VM with Docker
-and Vultr Inference configured.
+Zero”** path documented in DECISIONS.md and `docs/VULTR_SUBMISSION.md`:
+many agents, one trunk, zero blast radius. The Node/Vultr control plane is
+implemented and locally verified; the remaining proof is on a real Vultr VM
+with Docker and Vultr Inference configured.
+
+The Nov 8 positioning pass found the visible field crowded with single-run
+containment products (generate code → sandbox → receipt). Tributary's
+whitespace is fleet-level coordination: claims, waitlists, fork/commit,
+serial speculative merges, sandbox-verified trunk landing, and resolver as
+last resort. To win Challenge 1, the demo must also show **executed output** —
+not only contained syntax/package checks — plus a visible containment probe.
 
 ## What is left
 
-1. **Deploy to Vultr.** Run `deploy/setup-vultr.sh` on a fresh Cloud Compute
+1. **Close the Pattern A execution gap.** Extend the Docker sandbox gate so
+   the merged tree runs a real verification command — repo tests or
+   `verify.mjs` — and returns stdout/stderr/exit code as product evidence.
+   Add a small demo repo fixture with intentional bugs/tests.
+
+2. **Add a containment lab.** Run hostile probes through the same sandbox
+   path: fork bomb, infinite loop, network egress attempt, secret read,
+   `rm -rf` on the read-only fs. The video needs one obvious containment
+   moment with kernel/Docker evidence.
+
+3. **Deploy to Vultr.** Run `deploy/setup-vultr.sh` on a fresh Cloud Compute
    VM, or use `deploy/docker-compose.yml` where Docker is already present.
    Then set `VULTR_INFERENCE_API_KEY` and optionally `VULTR_INFERENCE_MODEL`
    in `/etc/tributary.env`.
 
-2. **Verify the deployed containment boundary.** `/config` should report
+4. **Verify the deployed containment boundary.** `/config` should report
    `sandbox: "docker"` and `ai.provider: "vultr"`. Run `simulate` and
-   `/demo/pack` against the public URL; the demo should show sandbox evidence
-   per task, the deterministic conflict → resolver → landed arc, and the
+   `/demo/pack` against the public URL; the demo should show executed sandbox
+   output, the deterministic conflict → resolver → landed arc, and the
    broken-code rejection.
 
-3. **Record the demo.** `docs/DEMO_SCRIPT.md` is the Cloudflare-challenge
-   script; for Vultr, lead with the task dashboard, sandbox evidence, and
-   the deterministic demo pack rather than the raw five-agent harness.
+5. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
+   dashboard cold open → demo pack → watershed/confluence/rapids → containment
+   moment → evidence close. `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
 
-4. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
+6. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
+   short description, architecture summary, and rubric mapping. Optionally
+   showcase on Vultr Community after the required lablab submission.
+
+7. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
    repo and submission copy remain in `docs/SUBMISSION.md`; social preview
    still has to be set in GitHub repository settings if it has not been.
 
-5. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
+8. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
    add the `[[artifacts]]` block to `wrangler.toml`, drop the
    `LOCAL_ARTIFACTS` binding and its `v2` migration, `npx wrangler login`,
    then `npm run dev` and `npm run simulate`.
 
-6. **(Stretch) Richer gate / MCP fork tool.** The executed gate is real but
-   still syntax/package-json scoped; production shape is the repo's own
-   toolchain in the same sandbox. MCP still lacks `tributary_fork`, so
-   `tributary_commit` needs repo credentials obtained separately.
+9. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
+   evidence bundles for judge-verifiable receipts. The executed gate should
+   grow from syntax/package checks to the repo's real toolchain in the same
+   sandbox. MCP still lacks `tributary_fork`, so `tributary_commit` needs repo
+   credentials obtained separately.
 
 ## River vocabulary (theme)
 
@@ -133,4 +155,5 @@ unchanged — they are plumbing, not prose. See DECISIONS.md.
 | `scripts/tributary.ts`     | agent    | Agent-facing CLI (`claim / fork / commit / release / run`)                |
 | `scripts/mcp.ts`           | agent    | MCP stdio server — five lifecycle tools for agents                        |
 | `wrangler.toml`            | config   | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`          |
-| `docs/`                    | docs     | Demo script, submission copy, MCP reference, checklist, hero art          |
+| `docs/`                    | docs     | Demo script, submission copies, MCP reference, checklist, hero art        |
+| `docs/VULTR_SUBMISSION.md` | docs     | Vultr Agent Rush positioning, rubric map, demo beats, gaps                |

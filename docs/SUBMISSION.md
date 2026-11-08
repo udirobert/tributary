@@ -3,6 +3,10 @@
 Use the text below when filling out the Cloudflare "Build the next GitHub"
 submission form. Sections are pre-cut for the form fields.
 
+For the Vultr Agent Rush Challenge 1 ("Blast Radius Zero") entry, use
+`docs/VULTR_SUBMISSION.md` instead — it carries the current positioning,
+rubric mapping, demo beats, and remaining gaps.
+
 ---
 
 ## Project title (max ~80 chars)
