@@ -528,3 +528,19 @@ Caveat: the only Rive Workspace available (`papa`) is on the Free plan, so the
 published `.riv` carries Rive's splash/watermark artboards. It was deployed as
 requested; to ship a clean export, republish `assets/rive/hero` from a Cadet+
 Workspace and regenerate `src/rive-hero.ts`.
+
+## Dashboard craft pass (Nov 8, 2026)
+
+The first river-console pass still read as generic dark cards around a nice
+stage. This pass keeps the same DOM/behavior and reworks the chrome as a layered
+ops console: gradient-bordered glass panels, finer blueprint grain, stronger
+display type on the confluence stage, status-colored task cards, richer
+composer/table/feed/drawer/replay styling, and staggered panel entrances. The
+motion budget stays intentional — panel/card/hover transitions plus the existing
+Rive + canvas flow layers — and `prefers-reduced-motion` still disables the
+ambient animation, Rive hero, and flow canvas. No coordination, SSE, replay,
+drawer, repo-browser, or config behavior changed.
+
+Verified locally: `prettier --check`, `tsc`, `eslint`, `npm test`, dashboard
+script `node --check`, and browser QA for live state, task drawer evidence,
+`?replay`, and reduced-motion canvas hiding.
