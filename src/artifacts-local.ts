@@ -80,6 +80,20 @@ const SEED_FILES: Record<string, string> = {
 	"src/handlers.js":
 		'const { greet } = require("./greet");\n' +
 		'exports.handle = (req) => greet("world");\n',
+	// The executed-work proof: the sandbox gate runs this after the syntax
+	// pass, so a merge only lands when the repo's own verification command
+	// exits green inside the container.
+	"verify.cjs":
+		"const assert = (ok, msg) => { if (!ok) throw new Error(msg); };\n" +
+		'const index = require("./src/index.js");\n' +
+		'const auth = require("./src/auth.js");\n' +
+		'const db = require("./src/db.js");\n' +
+		'assert(index.render("tributary") === "<h1>tributary</h1>", "render output changed");\n' +
+		'assert(typeof index.version === "string" && index.version.length > 0, "version export missing");\n' +
+		'assert(auth.isAuthed({ headers: { authorization: "Bearer token" } }) === true, "auth check failed");\n' +
+		"const conn = db.connect();\n" +
+		'assert(conn && typeof conn.query === "function", "db.connect() did not return a query client");\n' +
+		'console.log("verify: render/auth/db OK");\n',
 };
 
 export interface LocalRepoCreds {

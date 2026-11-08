@@ -15,7 +15,8 @@
 		"simulate": "tsx scripts/simulate.ts",
 		"test:merge": "tsx scripts/test-merge.ts",
 		"test:node": "tsx scripts/test-node-env.ts",
-		"test": "tsx scripts/test-merge.ts && tsx scripts/test-node-env.ts",
+		"test:sandbox": "tsx scripts/test-sandbox.ts",
+		"test": "tsx scripts/test-merge.ts && tsx scripts/test-node-env.ts && tsx scripts/test-sandbox.ts",
 		"tributary": "tsx scripts/tributary.ts",
 		"mcp": "tsx scripts/mcp.ts",
 		"prepare": "husky"

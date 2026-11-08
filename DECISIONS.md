@@ -306,14 +306,17 @@ Vultr-side implementations.
    binding) replaces the in-process fixture gate in both merge paths
    (`mergeTask`, `mergeTaskIntoTrunk`); `collectTree()` materializes the
    merged workdir into `path -> content`. `server/sandbox.ts` writes the
-   tree to a temp dir and runs `gate.mjs` — `vm.Script` compiles every .js
-   file (syntax check, nothing executed) and validates package.json —
-   inside `docker run --rm --network none --read-only --cap-drop ALL
---security-opt no-new-privileges --memory 256m --cpus 0.5 --pids-limit
-64`. Providers: `docker` (required on the VM), `local` (child process,
-   empty env, timeout — dev fallback), `off` (in-process gate). The
-   in-process semantic gate always runs alongside; it catches the class the
-   syntax gate can't.
+   tree to a temp dir and runs `.tributary-gate.mjs` — `vm.Script` compiles
+   every .js file (syntax check, nothing executed), validates package.json,
+   then executes the repo's verification command (`verify.cjs`/`verify.js`,
+   or `npm test` when the manifest declares one) — inside `docker run --rm
+--network none --read-only --cap-drop ALL --security-opt
+no-new-privileges --memory 256m --cpus 0.5 --pids-limit 64`. Providers:
+   `docker` (required on the VM), `local` (child process, empty env,
+   timeout — dev fallback), `off` (in-process gate). The in-process semantic
+   gate always runs alongside; it catches the class the syntax gate can't.
+   Verification scripts are CommonJS because the semantic gate is
+   CJS-oriented; ESM `verify.mjs` is a known follow-up.
 6. **`AI` becomes Vultr Serverless Inference.** `server/vultr-ai.ts` is an
    OpenAI-compatible adapter (`/chat/completions`) exposing `ai.run()`;
    `VULTR_INFERENCE_MODEL` selects the model (default
@@ -353,9 +356,12 @@ verifiable output").
    path — also the only path when no inference key is configured).
 3. **The gate returns a verdict + evidence record** (`SandboxGateResult` /
    `GateEvidence` in `src/merge.ts`): provider, the containment spec
-   (no network, read-only, caps, destroyed), output, exit code, duration.
-   Attached to merge outcomes and the task record — the containment boundary
-   rendered per-task in the UI, which is the C1 demo's centerpiece.
+   (no network, read-only, caps, destroyed), harness output/stdout/stderr,
+   exit code, duration, timeout flag, and a `verification` object for the
+   repo's executed check (command, exit code, duration, stdout/stderr,
+   skipped/timed-out reason). Attached to merge outcomes and the task record
+   — the containment boundary plus the executed-work proof rendered
+   per-task in the UI, which is the C1 demo's centerpiece.
 4. **Resolver reports provenance** — `ResolveResult.via` carries the model id
    or fallback label into the task record.
 5. **UI is task-centric**: composer (goal + advanced footprint/edits), task
@@ -405,15 +411,62 @@ resolver that is deliberately last resort.
 **Decision:** keep the multi-agent merge-control thesis as the primary Vultr
 story, but do not submit it as "just another sandbox runner." The submission
 must translate the architecture into Pattern A proof: model writes code → code
-executes inside a Vultr Docker sandbox → verifiable output returns. The current
-gap is that `server/sandbox.ts` contains and checks the merged tree but does
-not yet run a real verification command and return stdout/stderr as product
-output. Before submission we need: an executed gate (repo tests or
-`verify.mjs`), a small demo repo fixture, a visible containment probe, an
-explanation step powered by Vultr Inference, and deployed `/config` showing
+executes inside a Vultr Docker sandbox → verifiable output returns. The
+executed gate is now implemented locally (`verify.cjs`/`verify.js` or `npm
+test` inside the same sandbox, with command/stdout/stderr/exit-code evidence);
+before submission we still need a visible containment probe, an explanation
+step powered by Vultr Inference, and deployed `/config` showing
 `sandbox: "docker"` + `ai.provider: "vultr"`.
 
 Docs aligned: `README.md` now leads with "many agents, one trunk, zero blast
 radius"; `docs/VULTR_SUBMISSION.md` carries the submission-aligned pitch,
 rubric map, demo beats, and gaps; `docs/HANDOFF.md` reorders the remaining
-work around closing the Pattern A execution gap before deployment/demo.
+work around the containment lab, Vultr deployment, demo recording, and
+lablab submission now that the executed gate exists locally.
+
+## Executed verification gate + related OSS (Nov 8, 2026)
+
+**Built:** `server/sandbox.ts` now runs `.tributary-gate.mjs` inside the same
+Docker/local boundary. After the syntax/package pass it executes the merged
+tree's verification command — `verify.cjs`/`verify.js`, or `npm test` when
+`package.json` declares `scripts.test` — with a scrubbed environment, 20s
+verification timeout inside the 30s gate timeout, clipped stdout/stderr, and
+sandbox-root paths sanitized to `.` in evidence. `GateEvidence` gained
+`stdout`/`stderr`/`timedOut`/`verification`; the dashboard drawer renders the
+executed command separately from the containment spec. The local Artifacts
+seed now carries `verify.cjs`, and `/demo/pack`'s third task rewrites
+`src/db.js` into code that parses but fails verification (`query` is a
+string, plus an arity slip the semantic gate also catches if the sandbox is
+off). `scripts/test-sandbox.ts` covers pass/fail/syntax-skip in `local`
+mode; `npm test` runs it with the merge and Node-env harnesses.
+
+**Verified locally:** `npm test` green; `POST /demo/pack` on
+`TRIBUTARY_SANDBOX=local` lands the clean task, lands the resolver retry,
+and rejects the db rewrite with `node verify.cjs` exit 1 /
+`db.connect() did not return a query client` in task evidence.
+
+**Related OSS to learn from (not copied):** the coordination space is active.
+Closest are local-first tools — [agent-semaphore](https://github.com/alwh1te/agent-semaphore)
+(intent claims, warn/strict enforcement, conflict prediction, serialized
+landing + test gate), [AgentXFlow](https://github.com/harlixay7/AgentXFlow)
+(worktrees, write leases, machine verification, SHA-256 proof bundles, FIFO
+merge + CAS), [foremerge](https://github.com/naw103/foremerge) (semantic
+claims/dependencies/provenance above git), [mergetrain](https://github.com/yongjip/mergetrain)
+and [claude-code-merge-queue](https://github.com/funador/claude-code-merge-queue)
+(durable merge queues, combined-state gates, human-only promote), and
+[agent-fork-join](https://github.com/Epiphytic/agent-fork-join) (conflict →
+rebase → agent fixes → retry). For receipts/sandbox evidence see
+[andbo](https://github.com/qosikz/andbo/), [agentkernel](https://github.com/thrashr888/agentkernel/),
+[axocoatl](https://github.com/axocoatl/axocoatl), [Aegis](https://github.com/jeshwanthsingh/Aegis),
+and [proctor](https://github.com/dylanp12/proctor). Tributary stays
+differentiated as a hosted control plane with fork/token task repos, serial
+speculative merges, LLM last-resort resolution, and live task evidence.
+
+**Roadmap taken from that research:** tactical next — containment lab probes
+through the same sandbox path, SHA-256 evidence/receipt bundle, ESM
+`verify.mjs` support, repo-native toolchain gates, MCP `tributary_fork`.
+Ambitious next — finer-grained footprints (function/symbol intents like
+weft/grit/foremerge), dependency-aware merge ordering (air-traffic-control /
+multi-agent-merge-orchestrator), offline-verifiable receipts (Aegis/proctor),
+and a Vultr-Inference explanation pass that summarizes plan → edits → merge →
+verify → verdict for judges.

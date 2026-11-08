@@ -868,7 +868,7 @@ export default {
 
 		// Demo pack: three preset tasks that exercise the whole arc without an
 		// inference key — a clean landing, a same-line conflict that reaches
-		// the rapids, and broken code the sandbox gate rejects.
+		// the rapids, and a db rewrite the executed sandbox verification rejects.
 		if (request.method === "POST" && url.pathname === "/demo/pack") {
 			const stub = env.CLAIM_REGISTRY.get(
 				env.CLAIM_REGISTRY.idFromName("global"),
@@ -885,7 +885,12 @@ export default {
 				},
 				{
 					goal: "rewrite the db connector",
-					edits: { "src/db.js": "exports.connect = {{{ BROKEN" },
+					edits: {
+						"src/db.js":
+							'exports.connect = () => ({ query: "not-a-function" });\n' +
+							"function rows(sql, params) { return []; }\n" +
+							'exports.preview = () => rows("select 1");\n',
+					},
 				},
 			];
 			const ids: string[] = [];

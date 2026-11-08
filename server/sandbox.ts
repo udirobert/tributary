@@ -7,27 +7,52 @@
  * with an empty environment and a hard timeout: honest but weaker isolation.
  * `off` disables the sandbox and falls back to the in-process fixture gate.
  *
- * The gate itself is real executed work: it compiles every JS file in the
- * merged tree (syntax check, nothing executed) and validates package.json —
- * the same checks the in-process gate performs, but running where an agent's
- * code can never reach the host, its secrets, or the network.
+ * The gate is real executed work: it compiles every JS file in the merged
+ * tree (syntax check), validates package.json, then runs the repo's
+ * verification command — `verify.cjs` / `verify.js`, or `npm test` when the
+ * manifest declares one — and returns stdout/stderr/exit code as evidence.
+ * Verification scripts are CommonJS because the in-process semantic gate is
+ * CJS-oriented; ESM `verify.mjs` is a known follow-up.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import type {
+	GateEvidence,
+	SandboxGate,
+	SandboxGateResult,
+} from "../src/merge";
 
 const DOCKER_IMAGE = process.env.SANDBOX_IMAGE ?? "node:22-alpine";
 const TIMEOUT_MS = 30_000;
+const GATE_FILENAME = ".tributary-gate.mjs";
+const MARKER = "__TRIBUTARY_GATE_RESULT__";
 
-const GATE_SOURCE = `import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
+const GATE_SOURCE = `import { spawnSync } from "node:child_process";
+import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
+import { join, relative, dirname } from "node:path";
 import vm from "node:vm";
 const root = process.cwd();
+const VERIFY_TIMEOUT_MS = 20000;
+const MARKER = "__TRIBUTARY_GATE_RESULT__";
+const clip = (s, n = 20000) =>
+	s.length > n ? s.slice(0, n) + "\\n… [truncated " + (s.length - n) + " chars]" : s;
+const sanitize = (s) => clip(String(s).split(root).join("."));
+let pkg = null;
+let packageInvalid = false;
+if (existsSync(join(root, "package.json"))) {
+	try {
+		pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+	} catch (e) {
+		packageInvalid = true;
+		console.error("package.json invalid: " + e.message);
+	}
+}
 const files = [];
 const walk = (d) => {
 	for (const n of readdirSync(d)) {
-		if (n === ".git" || n === "node_modules" || n === "gate.mjs") continue;
+		if (n === ".git" || n === "node_modules" || n === ".tributary-gate.mjs") continue;
 		const f = join(d, n);
 		const s = statSync(f);
 		if (s.isDirectory()) walk(f);
@@ -35,7 +60,7 @@ const walk = (d) => {
 	}
 };
 walk(root);
-let bad = 0;
+let bad = packageInvalid ? 1 : 0;
 for (const f of files) {
 	if (!/\\.(mjs|cjs|js)$/.test(f)) continue;
 	try {
@@ -45,15 +70,55 @@ for (const f of files) {
 		bad++;
 	}
 }
-if (existsSync(join(root, "package.json"))) {
-	try {
-		JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-	} catch (e) {
-		console.error("package.json invalid: " + e.message);
-		bad++;
+const verifyRel = ["verify.cjs", "verify.js"].find((p) => existsSync(join(root, p)));
+const useNpm = !verifyRel && pkg && pkg.scripts && typeof pkg.scripts.test === "string" && pkg.scripts.test.trim();
+let verify = null;
+if (bad === 0) {
+	let cmd = null;
+	let args = [];
+	if (verifyRel) {
+		cmd = process.execPath;
+		args = [verifyRel];
+	} else if (useNpm) {
+		cmd = "npm";
+		args = ["test"];
+	}
+	if (cmd) {
+		const started = Date.now();
+		const env = {
+			PATH: [dirname(process.execPath), process.env.PATH, "/usr/local/bin", "/usr/bin", "/bin", "/opt/homebrew/bin"].filter(Boolean).join(":"),
+			TMPDIR: "/tmp",
+			HOME: "/tmp",
+			NODE_ENV: "test",
+			CI: "1",
+		};
+		let v;
+		try {
+			v = spawnSync(cmd, args, { cwd: root, env, encoding: "utf8", timeout: VERIFY_TIMEOUT_MS, maxBuffer: 1024 * 1024 });
+		} catch (e) {
+			v = { status: 1, stdout: "", stderr: String(e), error: e };
+		}
+		const enoent = v.error && v.error.code === "ENOENT";
+		const skipped = cmd === "npm" && enoent;
+		const timedOut = v.signal === "SIGTERM" || v.signal === "SIGKILL" || Boolean(v.error && v.error.code === "ETIMEDOUT");
+		const exitCode = skipped ? 0 : typeof v.status === "number" ? v.status : 1;
+		const stdout = sanitize(v.stdout ?? "");
+		const stderr = sanitize(v.stderr ?? "");
+		verify = {
+			command: cmd === process.execPath ? "node " + verifyRel : "npm test",
+			exitCode,
+			durationMs: Date.now() - started,
+			timedOut,
+			skipped,
+			reason: skipped ? "npm not available in sandbox PATH" : timedOut ? "verification timed out" : undefined,
+			stdout,
+			stderr,
+		};
+		if (!skipped && exitCode !== 0) bad++;
 	}
 }
-console.log("sandbox gate: checked " + files.length + " file(s)");
+console.log("sandbox gate: checked " + files.length + " file(s)" + (verify ? ", ran " + verify.command : ""));
+console.log(MARKER + JSON.stringify({ bad, verify }));
 process.exit(bad ? 1 : 0);
 `;
 
@@ -95,25 +160,12 @@ const LOCAL_SPEC: Record<string, string> = {
 	note: "dev fallback — deploy with docker for real containment",
 };
 
-interface GateVerdict {
-	ok: boolean;
-	reason?: string;
-	evidence: {
-		provider: string;
-		spec?: Record<string, string>;
-		output: string;
-		exitCode: number;
-		durationMs: number;
-	};
-}
-
 /**
  * Build the gate runner wired into the merge pipeline as env.SANDBOX_GATE.
  * Returns undefined when the provider is "off" so the pipeline keeps its
  * in-process gates.
  */
-export function makeSandboxGate():
-	((files: Record<string, string>) => Promise<GateVerdict>) | undefined {
+export function makeSandboxGate(): SandboxGate | undefined {
 	const provider = sandboxProvider();
 	if (provider === "off") return undefined;
 	return async (files) => runGate(files, provider);
@@ -121,14 +173,43 @@ export function makeSandboxGate():
 
 interface RunResult {
 	code: number;
-	output: string;
+	stdout: string;
+	stderr: string;
 	durationMs: number;
+	timedOut: boolean;
+}
+
+interface GateStdout {
+	clean: string;
+	verification?: GateEvidence["verification"];
+}
+
+function parseGateStdout(stdout: string): GateStdout {
+	const lines = stdout.split("\n");
+	let index = -1;
+	for (let i = lines.length - 1; i >= 0; i--) {
+		if (lines[i].startsWith(MARKER)) {
+			index = i;
+			break;
+		}
+	}
+	if (index === -1) return { clean: stdout };
+	let verification: GateEvidence["verification"];
+	try {
+		verification =
+			(JSON.parse(lines[index].slice(MARKER.length)).verify as
+				GateEvidence["verification"] | null) ?? undefined;
+	} catch {
+		verification = undefined;
+	}
+	lines.splice(index, 1);
+	return { clean: lines.join("\n"), verification };
 }
 
 async function runGate(
 	files: Record<string, string>,
 	provider: "docker" | "local",
-): Promise<GateVerdict> {
+): Promise<SandboxGateResult> {
 	const dir = mkdtempSync(join(tmpdir(), "tributary-gate-"));
 	try {
 		for (const [path, content] of Object.entries(files)) {
@@ -136,27 +217,37 @@ async function runGate(
 			mkdirSync(dirname(full), { recursive: true });
 			writeFileSync(full, content);
 		}
-		writeFileSync(join(dir, "gate.mjs"), GATE_SOURCE);
+		writeFileSync(join(dir, GATE_FILENAME), GATE_SOURCE);
 
 		const result =
 			provider === "docker" ? await dockerRun(dir) : await localRun(dir);
-		const output = result.output.trim();
-		const evidence = {
+		const parsed = parseGateStdout(result.stdout);
+		const output = [parsed.clean.trim(), result.stderr.trim()]
+			.filter(Boolean)
+			.join("\n")
+			.trim();
+		const evidence: GateEvidence = {
 			provider,
 			spec: provider === "docker" ? DOCKER_SPEC : LOCAL_SPEC,
 			output,
+			stdout: parsed.clean.trim(),
+			stderr: result.stderr.trim(),
 			exitCode: result.code,
 			durationMs: result.durationMs,
+			timedOut: result.timedOut || undefined,
+			verification: parsed.verification,
 		};
 		if (result.code === 0) {
 			console.log(`[Sandbox:${provider}] ${output}`);
 			return { ok: true, evidence };
 		}
-		return {
-			ok: false,
-			reason: `sandbox gate (${provider}): ${output || `exit ${result.code}`}`,
-			evidence,
-		};
+		let reason = `sandbox gate (${provider}): ${output || `exit ${result.code}`}`;
+		const verification = parsed.verification;
+		if (verification && !verification.skipped && verification.exitCode !== 0) {
+			const detail = (verification.stderr || verification.stdout).trim();
+			reason += ` — ${verification.command} exited ${verification.exitCode}${detail ? `: ${detail}` : ""}`;
+		}
+		return { ok: false, reason, evidence };
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
@@ -190,7 +281,7 @@ function dockerRun(dir: string): Promise<RunResult> {
 				"/work",
 				DOCKER_IMAGE,
 				"node",
-				"gate.mjs",
+				GATE_FILENAME,
 			],
 			{ stdio: ["ignore", "pipe", "pipe"] },
 		),
@@ -201,7 +292,7 @@ function localRun(dir: string): Promise<RunResult> {
 	// Containment-lite: empty environment (no inherited secrets), isolated cwd,
 	// hard timeout. Documented as weaker than docker — used only for dev.
 	return collect(
-		spawn(process.execPath, [join(dir, "gate.mjs")], {
+		spawn(process.execPath, [join(dir, GATE_FILENAME)], {
 			cwd: dir,
 			env: {},
 			stdio: ["ignore", "pipe", "pipe"],
@@ -212,26 +303,33 @@ function localRun(dir: string): Promise<RunResult> {
 function collect(child: ReturnType<typeof spawn>): Promise<RunResult> {
 	return new Promise((resolve) => {
 		const startedAt = Date.now();
-		let out = "";
-		child.stdout?.on("data", (d) => (out += d));
-		child.stderr?.on("data", (d) => (out += d));
+		let stdout = "";
+		let stderr = "";
+		let timedOut = false;
+		child.stdout?.on("data", (d) => (stdout += d));
+		child.stderr?.on("data", (d) => (stderr += d));
 		const timer = setTimeout(() => {
+			timedOut = true;
 			child.kill("SIGKILL");
 		}, TIMEOUT_MS);
 		child.on("error", (err) => {
 			clearTimeout(timer);
 			resolve({
 				code: 1,
-				output: String(err),
+				stdout,
+				stderr: String(err),
 				durationMs: Date.now() - startedAt,
+				timedOut,
 			});
 		});
 		child.on("close", (code) => {
 			clearTimeout(timer);
 			resolve({
 				code: code ?? 1,
-				output: out,
+				stdout,
+				stderr,
 				durationMs: Date.now() - startedAt,
+				timedOut,
 			});
 		});
 	});

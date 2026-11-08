@@ -41,8 +41,27 @@ export interface GateEvidence {
 	provider: string;
 	spec?: Record<string, string>;
 	output: string;
+	stdout?: string;
+	stderr?: string;
 	exitCode: number;
 	durationMs: number;
+	timedOut?: boolean;
+	/**
+	 * The repo's own verification command run inside the sandbox —
+	 * `verify.cjs`/`verify.js` or `npm test`. This is the executed-work proof:
+	 * stdout/stderr/exit code from the merged tree itself, separate from the
+	 * gate harness's own syntax/package checks.
+	 */
+	verification?: {
+		command: string;
+		exitCode: number;
+		durationMs: number;
+		timedOut: boolean;
+		skipped?: boolean;
+		reason?: string;
+		stdout: string;
+		stderr: string;
+	};
 }
 
 /** A gate run's verdict plus the evidence it produced. */

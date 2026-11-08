@@ -1,7 +1,7 @@
 # Tributary — handoff checklist
 
-Last updated: Nov 8, 2026 (after the Node/Vultr verification pass: queue
-semantics fix, deterministic demo pack, Node-env regression test).
+Last updated: Nov 8, 2026 (after the executed-verification gate: the sandbox
+now runs the repo's verify command and returns stdout/stderr/exit code).
 
 ## Where the project stands
 
@@ -13,17 +13,20 @@ Verified on this machine during the latest pass:
 - `API_BASE=http://127.0.0.1:8788 npm run simulate` drives five concurrent
   agents end-to-end and exits 0: five claims granted, one overlapping claim
   queued/promoted, five merge-queue items processed, trunk green.
-- `npm test` passes: the five-case merge-engine harness plus the new
-  Node-env queue regression (`scripts/test-node-env.ts`).
+- `npm test` passes: the five-case merge-engine harness, the Node-env queue
+  regression (`scripts/test-node-env.ts`), and the sandbox-gate harness
+  (`scripts/test-sandbox.ts`) that executes `verify.cjs` in local mode.
 - `npm run typecheck`, `npm run lint` (0 errors; existing `any` warnings
   only), and `npm run format:check` pass.
 - `POST /demo/pack` is now deterministic: all three preset tasks prepare
   their forks before any merge is enqueued, so the two `src/index.js` tasks
   fork the same pre-merge trunk. Verified result: task A lands, task B hits
   `conflict in src/index.js`, the resolver yields to trunk, the retry merge
-  lands, and broken `src/db.js` is rejected by the sandbox gate with evidence.
+  lands, and the db rewrite is rejected by executed sandbox verification
+  (`node verify.cjs` exits 1: `db.connect() did not return a query client`)
+  with command/stdout/stderr/exit-code evidence attached.
 - `POST /tasks` with explicit `edits` runs through the built-in agent path
-  and lands with sandbox-gate evidence attached.
+  and lands with sandbox-gate verification evidence attached.
 - `npm run dev` / Wrangler still boots with local bindings; `/config`,
   `/registry/status`, and the dashboard respond successfully.
 - `npm run mcp` answered a real `initialize` / `tools/list` /
@@ -46,54 +49,53 @@ The Nov 8 positioning pass found the visible field crowded with single-run
 containment products (generate code → sandbox → receipt). Tributary's
 whitespace is fleet-level coordination: claims, waitlists, fork/commit,
 serial speculative merges, sandbox-verified trunk landing, and resolver as
-last resort. To win Challenge 1, the demo must also show **executed output** —
-not only contained syntax/package checks — plus a visible containment probe.
+last resort. The Pattern A execution gap is now closed locally: the sandbox
+gate runs the merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside
+the same container/local child process and returns executed stdout/stderr/
+exit code as task evidence. What remains for Challenge 1 is a visible
+containment probe plus a real Vultr VM with Docker and Vultr Inference.
 
 ## What is left
 
-1. **Close the Pattern A execution gap.** Extend the Docker sandbox gate so
-   the merged tree runs a real verification command — repo tests or
-   `verify.mjs` — and returns stdout/stderr/exit code as product evidence.
-   Add a small demo repo fixture with intentional bugs/tests.
-
-2. **Add a containment lab.** Run hostile probes through the same sandbox
+1. **Add a containment lab.** Run hostile probes through the same sandbox
    path: fork bomb, infinite loop, network egress attempt, secret read,
    `rm -rf` on the read-only fs. The video needs one obvious containment
    moment with kernel/Docker evidence.
 
-3. **Deploy to Vultr.** Run `deploy/setup-vultr.sh` on a fresh Cloud Compute
+2. **Deploy to Vultr.** Run `deploy/setup-vultr.sh` on a fresh Cloud Compute
    VM, or use `deploy/docker-compose.yml` where Docker is already present.
    Then set `VULTR_INFERENCE_API_KEY` and optionally `VULTR_INFERENCE_MODEL`
    in `/etc/tributary.env`.
 
-4. **Verify the deployed containment boundary.** `/config` should report
+3. **Verify the deployed containment boundary.** `/config` should report
    `sandbox: "docker"` and `ai.provider: "vultr"`. Run `simulate` and
    `/demo/pack` against the public URL; the demo should show executed sandbox
-   output, the deterministic conflict → resolver → landed arc, and the
-   broken-code rejection.
+   output (`node verify.cjs`), the deterministic conflict → resolver → landed
+   arc, and the verification-failing rejection.
 
-5. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
+4. **Record the Vultr demo.** Use `docs/VULTR_SUBMISSION.md` demo beats:
    dashboard cold open → demo pack → watershed/confluence/rapids → containment
    moment → evidence close. `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
 
-6. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
+5. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
    short description, architecture summary, and rubric mapping. Optionally
    showcase on Vultr Community after the required lablab submission.
 
-7. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
+6. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
    repo and submission copy remain in `docs/SUBMISSION.md`; social preview
    still has to be set in GitHub repository settings if it has not been.
 
-8. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
+7. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
    add the `[[artifacts]]` block to `wrangler.toml`, drop the
    `LOCAL_ARTIFACTS` binding and its `v2` migration, `npx wrangler login`,
    then `npm run dev` and `npm run simulate`.
 
-9. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
-   evidence bundles for judge-verifiable receipts. The executed gate should
-   grow from syntax/package checks to the repo's real toolchain in the same
-   sandbox. MCP still lacks `tributary_fork`, so `tributary_commit` needs repo
-   credentials obtained separately.
+8. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
+   evidence bundles for judge-verifiable receipts. The executed gate now runs
+   `verify.cjs`/`verify.js` or `npm test`; the next gate upgrades are ESM
+   `verify.mjs`, repo-native toolchains (tsc/eslint/test), and hunk-level
+   resolver output. MCP still lacks `tributary_fork`, so `tributary_commit`
+   needs repo credentials obtained separately.
 
 ## River vocabulary (theme)
 
@@ -135,25 +137,26 @@ unchanged — they are plumbing, not prose. See DECISIONS.md.
 
 ## File map
 
-| File                       | Status   | What it does                                                              |
-| -------------------------- | -------- | ------------------------------------------------------------------------- |
-| `src/index.ts`             | core     | Routes, SQLite `ClaimRegistry` DO, task API, SSE + replay, queue consumer |
-| `src/agent.ts`             | product  | Built-in agent: prepare (plan/claim/fork/commit) → enqueue → confluence   |
-| `src/artifacts-local.ts`   | core     | `LocalArtifacts` DO — offline Artifacts surface on isomorphic-git         |
-| `src/merge.ts`             | core     | Real three-way merge + fixture/semantic/sandbox gates                     |
-| `src/resolver.ts`          | core     | Conflict-side resolution via Workers AI / Vultr + staged clone path       |
-| `src/dashboard.ts`         | product  | Task cards, river, SSE, `?replay`, sandbox/gate evidence                  |
-| `src/memory-fs.ts`         | modified | In-memory FS for isomorphic-git                                           |
-| `server/index.ts`          | runtime  | Node/Vultr entry: `node:http` wrapper around the Worker module            |
-| `server/env-node.ts`       | runtime  | Node bindings: node:sqlite registry, serial queue, Vultr AI, sandbox      |
-| `server/sandbox.ts`        | runtime  | Docker/local containment gate for merged trees                            |
-| `server/vultr-ai.ts`       | runtime  | OpenAI-compatible Vultr Inference adapter for `ai.run()`                  |
-| `deploy/`                  | runtime  | Vultr VM setup script, Dockerfile, compose file                           |
-| `scripts/simulate.ts`      | harness  | 5-agent end-to-end simulation, self-checking                              |
-| `scripts/test-merge.ts`    | harness  | 5-case merge-engine harness                                               |
-| `scripts/test-node-env.ts` | harness  | Node-env queue semantics regression                                       |
-| `scripts/tributary.ts`     | agent    | Agent-facing CLI (`claim / fork / commit / release / run`)                |
-| `scripts/mcp.ts`           | agent    | MCP stdio server — five lifecycle tools for agents                        |
-| `wrangler.toml`            | config   | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`          |
-| `docs/`                    | docs     | Demo script, submission copies, MCP reference, checklist, hero art        |
-| `docs/VULTR_SUBMISSION.md` | docs     | Vultr Agent Rush positioning, rubric map, demo beats, gaps                |
+| File                       | Status   | What it does                                                                |
+| -------------------------- | -------- | --------------------------------------------------------------------------- |
+| `src/index.ts`             | core     | Routes, SQLite `ClaimRegistry` DO, task API, SSE + replay, queue consumer   |
+| `src/agent.ts`             | product  | Built-in agent: prepare (plan/claim/fork/commit) → enqueue → confluence     |
+| `src/artifacts-local.ts`   | core     | `LocalArtifacts` DO — offline Artifacts surface on isomorphic-git           |
+| `src/merge.ts`             | core     | Real three-way merge + fixture/semantic/sandbox gates                       |
+| `src/resolver.ts`          | core     | Conflict-side resolution via Workers AI / Vultr + staged clone path         |
+| `src/dashboard.ts`         | product  | Task cards, river, SSE, `?replay`, sandbox/gate evidence                    |
+| `src/memory-fs.ts`         | modified | In-memory FS for isomorphic-git                                             |
+| `server/index.ts`          | runtime  | Node/Vultr entry: `node:http` wrapper around the Worker module              |
+| `server/env-node.ts`       | runtime  | Node bindings: node:sqlite registry, serial queue, Vultr AI, sandbox        |
+| `server/sandbox.ts`        | runtime  | Docker/local containment gate; executes `verify.cjs`/`verify.js`/`npm test` |
+| `server/vultr-ai.ts`       | runtime  | OpenAI-compatible Vultr Inference adapter for `ai.run()`                    |
+| `deploy/`                  | runtime  | Vultr VM setup script, Dockerfile, compose file                             |
+| `scripts/simulate.ts`      | harness  | 5-agent end-to-end simulation, self-checking                                |
+| `scripts/test-merge.ts`    | harness  | 5-case merge-engine harness                                                 |
+| `scripts/test-node-env.ts` | harness  | Node-env queue semantics regression                                         |
+| `scripts/test-sandbox.ts`  | harness  | Executed-verification gate harness (local provider)                         |
+| `scripts/tributary.ts`     | agent    | Agent-facing CLI (`claim / fork / commit / release / run`)                  |
+| `scripts/mcp.ts`           | agent    | MCP stdio server — five lifecycle tools for agents                          |
+| `wrangler.toml`            | config   | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`            |
+| `docs/`                    | docs     | Demo script, submission copies, MCP reference, checklist, hero art          |
+| `docs/VULTR_SUBMISSION.md` | docs     | Vultr Agent Rush positioning, rubric map, demo beats, gaps                  |

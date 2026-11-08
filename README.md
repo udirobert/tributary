@@ -33,22 +33,22 @@ three stages:
 
 ## Architecture
 
-| Piece            | Cloudflare primitive                      | Role                                                                                                                                                                                                                                        |
-| ---------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ClaimRegistry`  | Durable Object, SQLite (`src/index.ts`)   | File locks, waitlist, TTLs, live stats; row-level writes + a file→agent overlap index                                                                                                                                                       |
-| Task repos       | Artifacts (`env.ARTIFACTS`)               | Import trunk, fork per task, scoped `write` tokens with TTL                                                                                                                                                                                 |
-| `LocalArtifacts` | Durable Object (`src/artifacts-local.ts`) | Offline stand-in for the Artifacts surface above — import / fork / token / commit / merge on one shared `MemoryFS` git store. What the **default config** runs                                                                              |
-| `MERGE_QUEUE`    | Workers Queue (`max_concurrency = 1`)     | Serializes speculative merges onto trunk                                                                                                                                                                                                    |
-| Merge engine     | `src/merge.ts`                            | Three-way `isomorphic-git` merge + test gate; trunk only moves when green                                                                                                                                                                   |
-| Resolver         | `src/resolver.ts` + Workers AI / Vultr    | Real LLM resolution via `@cf/meta/llama-3.1-8b-instruct-fast` under Wrangler or Vultr Serverless Inference under Node; per-file AI call; GitLab-Duo staged-commit model (write token minted only on approval)                               |
-| Dashboard        | Worker `GET /` (`src/dashboard.ts`)       | Live console over SSE: river of active changes, trunk state, counters, claims, waitlist, feed, `?replay`                                                                                                                                    |
-| `tributary` CLI  | `scripts/tributary.ts`                    | Agent-facing surface: `claim / fork / commit / release / run` in one script                                                                                                                                                                 |
-| Built-in agent   | `src/agent.ts`                            | The C1 loop: goal → model plans + writes the diff (via the `ai` binding) → claim → fork → commit → queue. A client of the same surfaces external agents use                                                                                 |
-| Task registry    | `ClaimRegistry` tasks table               | Product-level entities — `POST /tasks` dispatches one; lifecycle statuses plus plan, edits, commit, sandbox-gate evidence and resolution ride the SSE snapshot                                                                              |
-| `tributary` MCP  | `scripts/mcp.ts`                          | MCP stdio server: `claim / release / status / commit / conflict` for agents                                                                                                                                                                 |
-| Node/Vultr entry | `server/index.ts` + `server/env-node.ts`  | Runs the same Worker module under plain Node: node:sqlite for `ctx.storage.sql`, an in-process serial drain for `MERGE_QUEUE`, direct singleton instances for the DO classes, `cloudflare:workers` satisfied via a `registerHooks` shim     |
-| Sandbox gate     | `server/sandbox.ts`                       | The containment layer: each merged tree's checks run in a throwaway container (`--network none`, read-only mount, no capabilities, 256MB/0.5CPU/pids caps, destroyed after the run) — the "production shape" the fixture gate stands in for |
-| Vultr inference  | `server/vultr-ai.ts`                      | OpenAI-compatible adapter over `api.vultrinference.com/v1` presenting the `ai.run()` surface the resolver expects                                                                                                                           |
+| Piece            | Cloudflare primitive                      | Role                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ClaimRegistry`  | Durable Object, SQLite (`src/index.ts`)   | File locks, waitlist, TTLs, live stats; row-level writes + a file→agent overlap index                                                                                                                                                                                                                               |
+| Task repos       | Artifacts (`env.ARTIFACTS`)               | Import trunk, fork per task, scoped `write` tokens with TTL                                                                                                                                                                                                                                                         |
+| `LocalArtifacts` | Durable Object (`src/artifacts-local.ts`) | Offline stand-in for the Artifacts surface above — import / fork / token / commit / merge on one shared `MemoryFS` git store. What the **default config** runs                                                                                                                                                      |
+| `MERGE_QUEUE`    | Workers Queue (`max_concurrency = 1`)     | Serializes speculative merges onto trunk                                                                                                                                                                                                                                                                            |
+| Merge engine     | `src/merge.ts`                            | Three-way `isomorphic-git` merge + test gate; trunk only moves when green                                                                                                                                                                                                                                           |
+| Resolver         | `src/resolver.ts` + Workers AI / Vultr    | Real LLM resolution via `@cf/meta/llama-3.1-8b-instruct-fast` under Wrangler or Vultr Serverless Inference under Node; per-file AI call; GitLab-Duo staged-commit model (write token minted only on approval)                                                                                                       |
+| Dashboard        | Worker `GET /` (`src/dashboard.ts`)       | Live console over SSE: river of active changes, trunk state, counters, claims, waitlist, feed, `?replay`                                                                                                                                                                                                            |
+| `tributary` CLI  | `scripts/tributary.ts`                    | Agent-facing surface: `claim / fork / commit / release / run` in one script                                                                                                                                                                                                                                         |
+| Built-in agent   | `src/agent.ts`                            | The C1 loop: goal → model plans + writes the diff (via the `ai` binding) → claim → fork → commit → queue. A client of the same surfaces external agents use                                                                                                                                                         |
+| Task registry    | `ClaimRegistry` tasks table               | Product-level entities — `POST /tasks` dispatches one; lifecycle statuses plus plan, edits, commit, sandbox-gate evidence and resolution ride the SSE snapshot                                                                                                                                                      |
+| `tributary` MCP  | `scripts/mcp.ts`                          | MCP stdio server: `claim / release / status / commit / conflict` for agents                                                                                                                                                                                                                                         |
+| Node/Vultr entry | `server/index.ts` + `server/env-node.ts`  | Runs the same Worker module under plain Node: node:sqlite for `ctx.storage.sql`, an in-process serial drain for `MERGE_QUEUE`, direct singleton instances for the DO classes, `cloudflare:workers` satisfied via a `registerHooks` shim                                                                             |
+| Sandbox gate     | `server/sandbox.ts`                       | The containment layer: each merged tree's checks run in a throwaway container (`--network none`, read-only mount, no capabilities, 256MB/0.5CPU/pids caps, destroyed after the run), then the repo's verification command executes inside the same boundary — the "production shape" the fixture gate stands in for |
+| Vultr inference  | `server/vultr-ai.ts`                      | OpenAI-compatible adapter over `api.vultrinference.com/v1` presenting the `ai.run()` surface the resolver expects                                                                                                                                                                                                   |
 
 ### HTTP surface (spike)
 
@@ -62,7 +62,8 @@ landed | rejected | failed`, with `resolving` in between on rejections
 - `GET /config` — which providers are live (`mode`, `sandbox`, `ai`); the
   topbar renders these as badges so the Vultr services in play are explicit
 - `POST /demo/pack` — dispatch three preset tasks (clean / same-line
-  conflict / broken code) so the full arc plays in-browser with no key
+  conflict / verification-failing db rewrite) so the full arc plays
+  in-browser with no key
 - `GET /` — live dashboard (streams `/registry/events`; `?replay` scrubs the
   retained event log). Task composer + task cards + a detail drawer showing
   the containment boundary per task
@@ -90,7 +91,7 @@ Worker that declares it will not boot on a free account (see DECISIONS.md).
 npm install        # also wires lint-staged/husky hooks + the TS6 lint shim
 npm run dev        # terminal 1: wrangler dev at http://127.0.0.1:8787
 npm run simulate   # terminal 2: spawn 5 concurrent agents at the endpoints
-npm test           # optional: merge-engine harness + Node-env queue regression
+npm test           # optional: merge-engine + Node-env + sandbox-gate harnesses
 open http://127.0.0.1:8787/   # live dashboard
 ```
 
@@ -121,11 +122,13 @@ Environment variables:
 **Containment.** With `TRIBUTARY_SANDBOX=docker`, every merge's gate runs
 inside a fresh container: `--network none`, read-only mount, `--cap-drop
 ALL`, `no-new-privileges`, 256MB memory / 0.5 CPU / 64-pid caps, `--rm` after
-the run. Agent-influenced code is compiled and checked where it can never
-reach the host, the control plane's secrets, or the network — and the
-container is destroyed either way. A rejected merge rewinds trunk and routes
-to the rapids, so the feed shows `claim → merge → sandbox reject → resolver`
-when an agent ships broken code.
+the run. Agent-influenced code is syntax-checked, then the repo's own
+verification command — `verify.cjs`/`verify.js`, or `npm test` when the
+manifest declares one — executes inside the same boundary, where it can never
+reach the host, the control plane's secrets, or the network. The container is
+destroyed either way. A rejected merge rewinds trunk and routes to the rapids,
+so the feed shows `claim → merge → sandbox reject → resolver` when an agent
+ships code that fails verification.
 
 ### Vultr Agent Rush positioning
 
@@ -155,11 +158,12 @@ Rubric fit:
   problem last" is a different frame from the crowded single-run sandbox
   products in the current field.
 
-Current gap to close before submission: the sandbox gate contains and checks
-the merged tree, but it still needs to run a real verification command
-(tests/script) and return stdout/stderr/exit code as product output. The demo
-should also include a visible containment probe through the same sandbox path.
-See `docs/VULTR_SUBMISSION.md` for the submission-aligned version.
+Executed-work proof now lands in the same sandbox: the gate runs the repo's
+`verify.cjs`/`verify.js` (or `npm test`) and returns command, stdout, stderr,
+and exit code in the task's gate evidence. Remaining before submission: a
+visible containment probe through the same sandbox path, plus deployed
+`/config` showing `sandbox: "docker"` and `ai.provider: "vultr"`. See
+`docs/VULTR_SUBMISSION.md` for the submission-aligned version.
 
 ### Deploying on Vultr
 
@@ -291,20 +295,17 @@ What's still simulated or unverified:
   `TRIBUTARY_SANDBOX=local` because Docker is not installed on the dev
   machine. Vultr Inference was likewise unconfigured, so AI paths used their
   deterministic fallbacks.
-- ⚠️ The sandbox gate is real containment, but it currently compiles/checks
-  the merged tree rather than executing the agent's code and returning
-  stdout/stderr as product output. Challenge 1 needs that executed-work proof
-  (repo tests or a verify script inside the same container) plus a visible
-  containment probe.
+- ⚠️ The sandbox gate now executes the repo's verification command
+  (`verify.cjs`/`verify.js`, or `npm test`) inside the container/local child
+  process and returns stdout/stderr/exit code as task evidence. Docker itself
+  is still unproven on a host without Docker, ESM `verify.mjs` is not yet
+  supported, and the video still needs a visible containment probe.
 - ⚠️ Resolutions are whole-file (both sides' full content, one AI call per
   file), not per-hunk. Fine for the fixture; a real tree would want hunk-level
-  granularity. In Node/Vultr mode the merged tree is materialized into a
-  throwaway container and checked there (`server/sandbox.ts`); the remaining
-  Challenge-1 gap is executing a real verification command inside that same
-  container and returning stdout/stderr as product output. The in-process semantic gate is a real AST check but
+  granularity. The in-process semantic gate is a real AST check but
   scope-limited: exported-function arity across the merged tree,
   bare-identifier calls only — the production shape is the repo's own
-  toolchain (tsc, eslint, test suite) in the same sandbox.
+  toolchain in the same sandbox.
 - ⚠️ `trunkStatus` reflects trunk health only — rejected merges increment
   `rejections` and invoke the resolver but never land, so trunk stays green
   by construction. Watch the `rejections` counter for rejection volume.
@@ -320,9 +321,18 @@ resolves semantic conflicts reactively at merge time with no scheduling;
 [openagents](https://github.com/openagents-org/openagents) coordinates agents
 conversationally, not via code ownership; GitLab's Duo conflict resolver
 ([work item #20688](https://gitlab.com/groups/gitlab-org/-/work_items/20688))
-validates LLM-resolver-as-last-resort but stays MR-centric. Tributary's thesis —
-scheduling first, negotiation last — is the gap between them. Details in
-[DECISIONS.md](./DECISIONS.md).
+validates LLM-resolver-as-last-resort but stays MR-centric. The newest local
+tools are closer — [agent-semaphore](https://github.com/alwh1te/agent-semaphore)
+(leases + conflict prediction + serialized landing),
+[AgentXFlow](https://github.com/harlixay7/AgentXFlow) (worktrees + verification
+
+- proof bundles + FIFO merge), and
+  [foremerge](https://github.com/naw103/foremerge) (semantic claims above git) —
+  but they are single-machine CLIs/protocols, not a hosted control plane with
+  fork/token task repos, a serial speculative merge queue, an LLM last-resort
+  resolver, and live task evidence. Tributary's thesis — scheduling first,
+  negotiation last — is the gap between them. Details in
+  [DECISIONS.md](./DECISIONS.md).
 
 ## Safety toolchain
 

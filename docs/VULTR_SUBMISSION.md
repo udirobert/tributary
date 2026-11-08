@@ -21,10 +21,11 @@ positioning after the Nov 8 research pass.
 > Tributary is a coordination layer for many AI agents editing one codebase.
 > Agents declare file footprints before working; overlapping work is queued
 > instead of wasting agent effort. Finished changes enter a serial speculative
-> merge queue, are merged with a real three-way merge, checked in an isolated
-> Vultr Docker sandbox, and only land when green. Residual conflicts go to an
-> LLM resolver as a last resort. The dashboard shows claims, waitlist, merge
-> evidence, sandbox verdicts, and resolution provenance live.
+> merge queue, are merged with a real three-way merge, and are verified by
+> executing the repo's own check inside an isolated Vultr Docker sandbox.
+> Residual conflicts go to an LLM resolver as a last resort. The dashboard
+> shows claims, waitlist, merge evidence, executed stdout/stderr/exit codes,
+> sandbox verdicts, and resolution provenance live.
 
 ## Why this is the differentiated angle
 
@@ -58,7 +59,9 @@ Field notes from the Nov 8 research pass:
     `server/vultr-ai.ts` when `VULTR_INFERENCE_API_KEY` is configured.
   - Docker sandbox gate (`server/sandbox.ts`) runs merged-tree checks with
     `--network none`, read-only mount, dropped capabilities,
-    `no-new-privileges`, memory/CPU/PID caps, and destruction after each run.
+    `no-new-privileges`, memory/CPU/PID caps, and destruction after each run —
+    then executes the repo's verification command (`verify.cjs`/`verify.js`,
+    or `npm test`) and returns command/stdout/stderr/exit code as evidence.
   - `isomorphic-git` performs real three-way merges; task records carry commit,
     gate evidence, and resolution provenance.
 
@@ -66,7 +69,8 @@ Field notes from the Nov 8 research pass:
   - Live dashboard: task composer, task cards, lifecycle statuses, gate
     badges, river visualization, SSE updates, `?replay`.
   - Deterministic `/demo/pack`: clean land, same-line conflict → resolver →
-    landed, broken code rejected by the sandbox gate.
+    landed, and a db rewrite rejected by executed `node verify.cjs` with
+    stdout/stderr/exit-code evidence.
   - Video should show the containment moment and the evidence panel, not just
     merge internals.
 
@@ -98,14 +102,15 @@ Target: 60–90 seconds, product-style.
 1. **Cold open on the dashboard** — "many agents, one trunk, zero blast
    radius."
 2. **Dispatch the demo pack** — three tasks appear: clean, same-line conflict,
-   broken code.
+   verification-failing db rewrite.
 3. **Watershed** — claims granted/queued; overlapping footprint waits instead
    of colliding.
-4. **Confluence** — serial merges land with commit SHAs and gate evidence.
+4. **Confluence** — serial merges land with commit SHAs and gate evidence;
+   open a landed task to show `node verify.cjs` stdout/exit code.
 5. **Rapids** — same-line conflict reaches the resolver, retry lands green.
-6. **Containment moment** — broken/hostile code is rejected inside the
-   disposable container; trunk stays green; evidence shows provider, spec,
-   output, exit code, duration.
+6. **Containment moment** — the db rewrite is rejected inside the disposable
+   container when `verify.cjs` exits non-zero; trunk stays green; evidence
+   shows provider, spec, command, stdout/stderr, exit code, duration.
 7. **Close** — "the agent that only chats is a demo; Tributary proves the
    merged result before it lands."
 
@@ -114,12 +119,14 @@ Before recording, `/config` must show `sandbox: "docker"` and
 
 ## Gaps to close before submission
 
-1. **Executed-work proof.** The current Docker gate compiles/checks the merged
-   tree; Challenge 1 wants real executed output. Add a verification command
-   inside the same container — repo tests or `verify.mjs` — and return
-   stdout/stderr/exit code as product evidence.
-2. **Demo repo fixture.** Use a small repo with intentional bugs/tests so
-   "agents fix the repo" is concrete and repeatable.
+1. **Executed-work proof — done locally.** The Docker/local gate now runs the
+   merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside the same
+   sandbox and returns command/stdout/stderr/exit code as task evidence.
+   Remaining: prove it on the Vultr VM with `sandbox: "docker"` and keep the
+   demo fixture repeatable.
+2. **Demo repo fixture.** The trunk seed now carries `verify.cjs`; keep it
+   small and intentional so "agents edit a repo that must stay green" is
+   concrete for judges.
 3. **Containment lab.** Add probes through the same sandbox path: fork bomb,
    infinite loop, network egress attempt, secret read, `rm -rf` on read-only
    fs. Show what the kernel/Docker did.
@@ -143,8 +150,9 @@ Before recording, `/config` must show `sandbox: "docker"` and
 > Many agents, one trunk, zero blast radius. Tributary coordinates concurrent
 > AI agents editing one repo: declared footprints prevent overlap, a serial
 > speculative merge queue integrates real three-way merges, a disposable Vultr
-> Docker sandbox verifies the merged tree, and only residual conflicts reach
-> an LLM resolver. The dashboard exposes claims, waitlist, merge evidence,
+> Docker sandbox executes the repo's verification command on the merged tree,
+> and only residual conflicts reach an LLM resolver. The dashboard exposes
+> claims, waitlist, merge evidence, executed stdout/stderr/exit codes,
 > sandbox verdicts, and resolution provenance live.
 
 **Architecture summary**

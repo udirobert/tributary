@@ -803,12 +803,25 @@ export const DASHBOARD_HTML = `<!doctype html>
       var spec = g.spec ? '<div class="specgrid">' + Object.keys(g.spec).map(function (k) {
         return '<div class="spec"><b>' + esc(k) + '</b>' + esc(String(g.spec[k])) + '</div>';
       }).join('') + '</div>' : '';
+      var verifyHtml = '';
+      if (g.verification) {
+        var v = g.verification;
+        verifyHtml = '<div class="gate-head" style="margin-top:10px">' +
+          '<span class="verdict ' + (v.skipped ? '' : (v.exitCode === 0 ? 'ok' : 'bad')) + '">' +
+          (v.skipped ? '⊘ verify skipped' : (v.exitCode === 0 ? '✓ verify passed' : '✗ verify failed')) + '</span>' +
+          '<span class="muted" style="font-size:11px"><code>' + esc(v.command) + '</code> · exit ' +
+          esc(String(v.exitCode)) + ' · ' + esc(String(v.durationMs)) + 'ms' +
+          (v.timedOut ? ' · timed out' : '') + '</span></div>' +
+          (v.reason ? '<p class="muted" style="font-size:11.5px">' + esc(v.reason) + '</p>' : '') +
+          (v.stdout ? '<pre>' + esc(v.stdout) + '</pre>' : '') +
+          (v.stderr ? '<pre style="border-color: rgba(239,68,68,0.45); color: #fca5a5">' + esc(v.stderr) + '</pre>' : '');
+      }
       parts.push('<div class="dsec"><h4>Sandbox gate — the containment boundary</h4>' +
         '<div class="gate-head"><span class="verdict ' + (g.exitCode === 0 ? 'ok' : 'bad') + '">' +
         (g.exitCode === 0 ? '✓ passed' : '✗ rejected') + '</span>' +
         '<span class="muted" style="font-size:11px">' + esc(g.provider) + ' · exit ' +
         esc(String(g.exitCode)) + ' · ' + esc(String(g.durationMs)) + 'ms</span></div>' +
-        spec + (g.output ? '<pre>' + esc(g.output) + '</pre>' : '') + '</div>');
+        spec + verifyHtml + (g.output ? '<pre>' + esc(g.output) + '</pre>' : '') + '</div>');
     }
 
     if (t.resolution) {
