@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — containment slide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #f5efe2; --ink: #22304a; --ink2: #2c5f8a; --ink3: #10233f;
+    --green: #2f6b4f; --red: #c8402a; --amber: #9a6a1f; --dim: #6b7686;
+    --rule: rgba(16,35,63,.32);
+    --display: "Anton", "Arial Narrow", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --ui: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(1200px 780px at 4% -10%, rgba(44,95,138,.11), transparent 58%),
+      radial-gradient(900px 620px at 98% 0%, rgba(200,64,42,.06), transparent 55%),
+      linear-gradient(180deg, #efe7d5, var(--paper) 44%, #e8ddc8);
+    color: var(--ink); font-family: var(--ui); -webkit-font-smoothing: antialiased;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+  }
+  .sheet { position: absolute; inset: 28px; border: 2px solid var(--ink3); }
+  .sheet::before { content: ""; position: absolute; inset: 6px; border: 1px solid var(--rule); }
+  .wrap { position: absolute; inset: 6px; padding: 40px 54px 88px; display: grid; grid-template-columns: 1fr 552px; gap: 40px; }
+  .top { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-start; }
+  .num { font-family: var(--display); font-size: 21px; color: var(--amber); letter-spacing: 1px; }
+  h1 { margin: 6px 0 0; font-family: var(--display); font-size: 58px; line-height: .98; letter-spacing: .8px; color: var(--ink3); }
+  .dek { margin-top: 14px; font-size: 20px; line-height: 1.42; color: var(--ink); max-width: 880px; }
+  .dek b { color: var(--ink3); }
+  .stamp { text-align: right; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; letter-spacing: 1.1px; color: var(--ink3); }
+  .stamp b { color: var(--amber); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+  th { font-family: var(--mono); font-size: 11.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); text-align: left; padding: 7px 10px 7px 0; border-bottom: 2px solid var(--ink3); font-weight: 600; }
+  td { padding: 11px 10px; border-bottom: 1px solid var(--rule); }
+  td.p { font-family: var(--mono); font-size: 17px; color: var(--ink3); font-weight: 600; width: 236px; padding-left: 0; }
+  td.c { font-family: var(--mono); font-size: 13.5px; color: var(--dim); width: 150px; }
+  td.o { font-family: var(--mono); font-size: 15px; color: var(--ink2); }
+  td.v { text-align: right; width: 128px; }
+  .chip { font-family: var(--mono); font-size: 11.5px; letter-spacing: 1.2px; padding: 4px 9px; border: 1.4px solid var(--green); color: var(--green); text-transform: uppercase; font-weight: 600; white-space: nowrap; }
+
+  .flow { margin-top: 24px; }
+  .flow h2, .right h2 { margin: 0 0 12px; font-family: var(--mono); font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .fgrid { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto; column-gap: 10px; align-items: center; }
+  .node { border: 1.4px solid var(--ink3); background: rgba(255,255,255,.42); padding: 9px 13px; font-family: var(--mono); font-size: 14px; letter-spacing: .6px; color: var(--ink3); white-space: nowrap; }
+  .node small { display: block; font-size: 10px; letter-spacing: 1.1px; color: var(--dim); margin-top: 3px; text-transform: uppercase; }
+  .arrow { height: 1px; background: var(--ink3); position: relative; }
+  .arrow::after { content: ""; position: absolute; right: 0; top: -3.5px; border-left: 7px solid var(--ink3); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+  .node.bad { border-color: var(--red); color: var(--red); background: rgba(200,64,42,.06); white-space: normal; grid-column: 5; grid-row: 3; }
+  .drop { grid-column: 5; grid-row: 2; justify-self: center; width: 1px; height: 17px; background: var(--red); position: relative; }
+  .drop::after { content: ""; position: absolute; bottom: 0; left: -3.5px; border-top: 7px solid var(--red); border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; }
+  .why { grid-column: 6 / 8; grid-row: 3; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; letter-spacing: .4px; color: var(--dim); padding-left: 12px; }
+
+  .stats { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule); border-top: 2px solid var(--ink3); background: rgba(255,255,255,.34); }
+  .stat { padding: 12px 16px; border-right: 1px solid var(--rule); }
+  .stat:last-child { border-right: 0; }
+  .stat b { display: block; font-family: var(--display); font-size: 34px; letter-spacing: .6px; color: var(--ink3); line-height: 1; }
+  .stat span { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); margin-top: 6px; }
+
+  .cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .cell { border: 1px solid var(--rule); background: rgba(255,255,255,.4); padding: 9px 10px; }
+  .cell .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--dim); }
+  .cell .v { font-family: var(--mono); font-size: 15px; color: var(--ink3); margin-top: 4px; font-weight: 500; }
+  pre { margin: 12px 0 0; border: 1px solid var(--rule); background: rgba(255,255,255,.42); padding: 12px 13px; font-family: var(--mono); font-size: 13.5px; line-height: 1.6; color: var(--ink3); white-space: pre-wrap; }
+  pre b { color: var(--green); font-weight: 600; }
+  .verdict { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .verdict .big { font-family: var(--display); font-size: 28px; color: var(--green); letter-spacing: .6px; }
+  .verdict .sm { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .6px; }
+  .right { padding-top: 26px; display: flex; flex-direction: column; }
+
+  .foot { position: absolute; left: 60px; right: 60px; bottom: 28px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 2px solid var(--ink3); padding-top: 10px; }
+  .foot .l { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; color: var(--dim); }
+  .foot .r { font-family: var(--display); font-size: 19px; letter-spacing: .8px; color: var(--ink3); }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">05 / 10</div>
+      <h1>Nothing lands until it runs<br />somewhere it cannot reach.</h1>
+    </div>
+    <div class="stamp">POST /containment/lab<br />nuncio-vultr · docker<br />2026-11-08 · <b>REV A</b></div>
+  </div>
+
+  <div>
+    <div class="dek">Every merge is executed in a <b>throwaway Vultr container</b> running the repository’s own verify command. Five hostile probes were run against that same boundary — <b>all five contained</b>.</div>
+    <table>
+      <thead><tr><th>Probe</th><th>Command</th><th>Observed inside the sandbox</th><th style="text-align:right">Verdict</th></tr></thead>
+      <tbody>
+        <tr><td class="p">fork-bomb</td><td class="c">node probe.mjs</td><td class="o">killed at 8 008 ms · exit 1 · pids capped at 64</td><td class="v"><span class="chip">Contained</span></td></tr>
+        <tr><td class="p">infinite-loop</td><td class="c">node probe.mjs</td><td class="o">timed out at 8 012 ms · exit 1</td><td class="v"><span class="chip">Contained</span></td></tr>
+        <tr><td class="p">network-egress</td><td class="c">node probe.mjs</td><td class="o">EGRESS_BLOCKED · EAI_AGAIN</td><td class="v"><span class="chip">Contained</span></td></tr>
+        <tr><td class="p">secret-read</td><td class="c">node probe.mjs</td><td class="o">SECRET_READ_BLOCKED · EACCES</td><td class="v"><span class="chip">Contained</span></td></tr>
+        <tr><td class="p">read-only-delete</td><td class="c">node probe.mjs</td><td class="o">WRITE_BLOCKED · EROFS</td><td class="v"><span class="chip">Contained</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="flow">
+      <h2>Where the gate sits</h2>
+      <div class="fgrid">
+        <div class="node">CLAIM<small>declared footprint</small></div>
+        <div class="arrow"></div>
+        <div class="node">SERIAL MERGE<small>CP-01 · three-way</small></div>
+        <div class="arrow"></div>
+        <div class="node">SANDBOX GATE<small>node verify.cjs</small></div>
+        <div class="arrow"></div>
+        <div class="node">TRUNK<small>verified revision</small></div>
+        <div class="drop"></div>
+        <div class="node bad">✗ REJECT<small>exit code + stdout kept</small></div>
+        <div class="why">the revision never reaches the trunk,<br />and never disappears either</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <h2>The boundary, as shipped</h2>
+    <div class="cells">
+      <div class="cell"><div class="k">Isolation</div><div class="v">container</div></div>
+      <div class="cell"><div class="k">Network</div><div class="v">none</div></div>
+      <div class="cell"><div class="k">Filesystem</div><div class="v">read-only</div></div>
+      <div class="cell"><div class="k">Capabilities</div><div class="v">none</div></div>
+      <div class="cell"><div class="k">Privileges</div><div class="v">no-new-priv</div></div>
+      <div class="cell"><div class="k">Memory</div><div class="v">256 MB</div></div>
+      <div class="cell"><div class="k">CPU</div><div class="v">0.5</div></div>
+      <div class="cell"><div class="k">PIDs</div><div class="v">64</div></div>
+      <div class="cell"><div class="k">Lifecycle</div><div class="v">destroyed</div></div>
+    </div>
+    <h2 style="margin-top:26px">Receipt from a real merge</h2>
+    <pre>$ node verify.cjs
+<b>verify: render/auth/db OK</b>
+exit 0 · 149 ms · docker gate · 1 272 ms
+
+sandbox gate: checked 13 file(s),
+ran node verify.cjs</pre>
+    <div class="verdict"><div class="big">✓ PASSED</div><div class="sm">only then does the revision reach the trunk</div></div>
+    <div class="stats">
+      <div class="stat"><b>153</b><span>merges landed</span></div>
+      <div class="stat"><b>131</b><span>conflicts prevented</span></div>
+      <div class="stat"><b>18</b><span>resolver runs</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · verified merge control for agent swarms · tributary.persidian.com · counters read live 2026-11-08 21:40</div>
+    <div class="r">BLAST RADIUS: CONTAINED</div>
+  </div>
+</div></div>
+</body>
+</html>

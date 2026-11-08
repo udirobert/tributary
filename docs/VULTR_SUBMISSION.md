@@ -101,7 +101,9 @@ Field notes from the Nov 8 research pass:
 
 ## Demo beats for the video
 
-Target: 60–90 seconds, product-style.
+Target: 60–90 seconds, product-style. The delivered cut runs 1:55.87 — the
+same seven beats, plus the four clauses and the containment lab as their own
+cards (see "Demo film and slide deck — shipped" below).
 
 1. **Cold open on the dashboard** — "many agents, one trunk, zero blast
    radius."
@@ -123,13 +125,33 @@ Target: 60–90 seconds, product-style.
 Before recording, `/config` must show `sandbox: "docker"` and
 `ai.provider: "vultr"`. Do not demo the `local` fallback as if it were Docker.
 
+## Demo film and slide deck — shipped
+
+- **Film:** 1:55.87, 1920×1080 @ 30 fps, music bed at −17 LUFS, twelve caption
+  events burned in over the live shots only. Eighteen clips: six drawn sheets
+  (title, problem, four clauses, containment lab, architecture, close) and
+  twelve captures of the deployed dashboard.
+- **Containment moment:** the lab card lists all five probes with what the
+  container actually reported — fork bomb killed at 8 008 ms with pids capped at
+  64, infinite loop timed out at 8 012 ms, `EGRESS_BLOCKED · EAI_AGAIN`,
+  `SECRET_READ_BLOCKED · EACCES`, `WRITE_BLOCKED · EROFS` — then stamps
+  `BLAST RADIUS: CONTAINED`.
+- **Deck:** ten 1920×1080 sheets in the same language, exported as a 16:9 PDF.
+- **Sources:** `docs/submission-media/` holds the HyperFrames composition, the
+  SRT, the ten slide documents, the shared sheet CSS and the build scripts. The
+  rendered video and images are not committed — the video is hosted on YouTube
+  and both artifacts regenerate from a live deployment.
+- **Numbers:** every counter is read from the deployed registry at recording
+  time and reconciled against the event log (171 attempts = 153 landed + 18
+  refused). Nothing in either artifact is a made-up tally.
+
 ## Gaps to close before submission
 
 1. **Executed-work proof — done locally and on Vultr.** The Docker/local gate
    runs the merged tree's `verify.cjs`/`verify.js` (or `npm test`) inside the
    same sandbox and returns command/stdout/stderr/exit code as task evidence.
    Proven on `nuncio-vultr` with `sandbox: "docker"` and publicly at
-   `https://tributary.persidian.com`; remaining: record demo.
+   `https://tributary.persidian.com`, and recorded in the demo film.
 2. **Demo repo fixture.** The trunk seed now carries `verify.cjs`; keep it
    small and intentional so "agents edit a repo that must stay green" is
    concrete for judges.
@@ -146,8 +168,8 @@ Before recording, `/config` must show `sandbox: "docker"` and
 6. **Deployed verification — done on-box and public.** `simulate`,
    `/demo/pack`, and `POST /containment/lab` ran on `nuncio-vultr` with Docker
    gates and Vultr Inference; `https://tributary.persidian.com/config`
-   reports `sandbox: "docker"` + `ai.provider: "vultr"`. Remaining: record
-   demo.
+   reports `sandbox: "docker"` + `ai.provider: "vultr"`. Both the film and the
+   deck were recorded against that deployment.
 
 ## Submission field copy
 

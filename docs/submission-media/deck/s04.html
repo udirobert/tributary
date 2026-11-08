@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — 04 / the mechanism</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .body { display: grid; grid-template-columns: 1fr 640px; gap: 40px; margin-top: 18px; flex: 1; }
+  svg.plan { width: 100%; height: 100%; max-height: 780px; }
+  .lbl { font-family: var(--mono); font-size: 13px; letter-spacing: 1.3px; fill: var(--dim); text-transform: uppercase; }
+  .lbl.hot { fill: var(--amber); } .lbl.g { fill: var(--green); } .lbl.r { fill: var(--red); } .lbl.i { fill: var(--ink2); }
+  ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 0; }
+  ol.steps li { display: grid; grid-template-columns: 46px 1fr; gap: 16px; padding: 17px 0; border-bottom: 1px solid var(--rule); }
+  ol.steps li::before { counter-increment: s; content: "0" counter(s); font-family: var(--mono); font-size: 14px; letter-spacing: 1.2px; color: var(--amber); border: 1.3px solid var(--amber); padding: 4px 0; text-align: center; height: fit-content; }
+  ol.steps b { display: block; font-family: var(--display); font-size: 24px; letter-spacing: .7px; color: var(--ink3); margin-bottom: 5px; }
+  ol.steps span { font-family: var(--mono); font-size: 14.5px; line-height: 1.5; color: var(--ink2); }
+  li.gate::before { border-color: var(--green); color: var(--green); }
+  li.rap::before { border-color: var(--red); color: var(--red); }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">04 / 10 · the mechanism</div>
+      <h1>How a revision reaches the trunk.</h1>
+    </div>
+    <div class="stamp">survey plan · cp-01<br />one integration in flight<br /><b>REV A</b></div>
+  </div>
+
+  <div class="body">
+    <svg class="plan" viewBox="0 0 830 940" preserveAspectRatio="xMidYMid meet">
+      <g stroke="rgba(16,35,63,.10)" stroke-width="1">
+        <path d="M0 160H830M0 380H830M0 600H830M0 820H830" />
+        <path d="M170 0V940M380 0V940M590 0V940" />
+      </g>
+      <g transform="translate(742,120)">
+        <circle r="26" fill="none" stroke="var(--ink3)" stroke-width="1.4" />
+        <path d="M0 -17 L7 9 L0 3 L-7 9 Z" fill="var(--ink3)" />
+      </g>
+      <g fill="none" stroke-linecap="round">
+        <path d="M96 208 C 250 236, 372 322, 452 424" stroke="var(--ink2)" stroke-width="2.6" stroke-dasharray="3 9" opacity=".85" />
+        <path d="M74 318 C 236 344, 366 398, 448 442" stroke="var(--amber)" stroke-width="2.6" stroke-dasharray="3 9" opacity=".85" />
+        <path d="M120 552 C 268 540, 380 500, 452 470" stroke="var(--red)" stroke-width="2.6" stroke-dasharray="3 9" opacity=".7" />
+      </g>
+      <g fill="none" stroke-width="2">
+        <rect x="82" y="194" width="26" height="26" stroke="var(--ink2)" />
+        <rect x="60" y="304" width="26" height="26" stroke="var(--amber)" />
+        <rect x="106" y="538" width="26" height="26" stroke="var(--red)" />
+      </g>
+      <text class="lbl i" x="120" y="188">agent-7056 · 1f</text>
+      <text class="lbl hot" x="98" y="300">agent-423d · 2f</text>
+      <text class="lbl r" x="150" y="512">agent-dba7 · 1f</text>
+      <g>
+        <rect x="60" y="640" width="196" height="150" fill="none" stroke="var(--ink3)" stroke-width="1.6" opacity=".8" />
+        <rect x="65" y="645" width="186" height="140" fill="none" stroke="var(--rule)" stroke-width=".9" />
+        <text class="lbl hot" x="78" y="672">Staged · CP-01</text>
+        <g fill="none" stroke="var(--amber)" stroke-width="1.8">
+          <rect x="78" y="686" width="15" height="15" /><rect x="103" y="686" width="15" height="15" /><rect x="128" y="686" width="15" height="15" />
+          <rect x="78" y="711" width="15" height="15" /><rect x="103" y="711" width="15" height="15" /><rect x="128" y="711" width="15" height="15" />
+          <rect x="78" y="736" width="15" height="15" /><rect x="103" y="736" width="15" height="15" />
+        </g>
+        <path d="M256 776 C 320 800, 392 610, 440 500" fill="none" stroke="var(--amber)" stroke-width="1.6" stroke-dasharray="4 7" opacity=".8" />
+      </g>
+      <g transform="translate(470,455)">
+        <circle r="52" fill="none" stroke="var(--ink3)" stroke-width="2" />
+        <circle r="34" fill="none" stroke="var(--ink3)" stroke-width="1" stroke-dasharray="4 6" opacity=".6" />
+        <path d="M-13 -6 v-13 a13 13 0 0 1 26 0 v13" fill="none" stroke="var(--ink3)" stroke-width="2.4" />
+        <rect x="-17" y="-6" width="34" height="26" fill="none" stroke="var(--ink3)" stroke-width="2.4" />
+        <text class="lbl" x="0" y="86" text-anchor="middle">CP-01 · serial lock</text>
+      </g>
+      <path d="M470 455 C 640 520, 720 660, 786 848" fill="none" stroke="var(--ink2)" stroke-width="9" stroke-linecap="round" opacity=".9" />
+      <path d="M470 455 C 640 520, 720 660, 786 848" fill="none" stroke="var(--ink3)" stroke-width="1.4" stroke-dasharray="2 10" opacity=".7" />
+      <g fill="none" stroke="var(--green)" stroke-width="2.4" opacity=".95">
+        <circle cx="556" cy="492" r="11" /><circle cx="618" cy="540" r="11" /><circle cx="672" cy="602" r="11" /><circle cx="716" cy="678" r="11" /><circle cx="752" cy="766" r="11" />
+      </g>
+      <text class="lbl i" x="700" y="880" text-anchor="end">as-built trunk</text>
+      <text class="lbl g" x="500" y="392">verified revisions only</text>
+      <g stroke="var(--red)" stroke-width="2.2" fill="none" opacity=".9">
+        <path d="M300 402 l10 -12 l10 12 l10 -12" /><path d="M330 452 l10 -12 l10 12 l10 -12" />
+      </g>
+      <text class="lbl r" x="282" y="418" text-anchor="end">rapids<tspan x="282" dy="18">· residual conflict</tspan></text>
+      <g transform="translate(60,880)">
+        <path d="M0 0H300" stroke="var(--ink3)" stroke-width="1.4" />
+        <path d="M0 -6V6M75 -4V4M150 -6V6M225 -4V4M300 -6V6" stroke="var(--ink3)" stroke-width="1.4" />
+        <text class="lbl" x="0" y="26">blast radius: contained</text>
+      </g>
+    </svg>
+
+    <ol class="steps">
+      <li><div><b>Claim</b><span>the agent names its footprint; the registry admits it, or queues it as a parcel with a reason.</span></div></li>
+      <li><div><b>Serial merge</b><span>CP-01 lets exactly one revision through and runs a real three-way merge against the live trunk.</span></div></li>
+      <li class="rap"><div><b>The rapids</b><span>only the hunk the merge could not settle is sent to Vultr Inference — never the whole change.</span></div></li>
+      <li class="gate"><div><b>The gate</b><span>a throwaway container runs the repo's own verify command. Exit 0, or nothing moves.</span></div></li>
+      <li><div><b>Trunk</b><span>the revision lands, the ring is drawn, and it fades with age — the last forty landings stay readable.</span></div></li>
+    </ol>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · the same plan is the live dashboard — the map is the state, not a picture of it</div>
+    <div class="r">THE MECHANISM</div>
+  </div>
+</div></div>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — replay slide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .kinds { margin-top: 4px; }
+  .kinds .row { border-left-width: 5px; padding: 18px 17px; margin-bottom: 11px; }
+  .kinds .row .n { width: 118px; text-align: right; font-weight: 600; }
+  .kinds .row .nm { width: 210px; }
+  .kinds .row .g { font-size: 15px; color: var(--ink2); }
+  .kinds .row .bar { flex: 0 0 auto; width: 260px; height: 8px; border: 1px solid var(--rule); background: rgba(255,255,255,.5); position: relative; }
+  .kinds .row .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink2); display: block; }
+  .kinds .row.hot .bar i { background: var(--amber); }
+  .kinds .row.g .bar i { background: var(--green); }
+  .kinds .row.r .bar i { background: var(--red); }
+  .legend { margin-top: 30px; font-family: var(--mono); font-size: 12.5px; letter-spacing: .4px; color: var(--dim); line-height: 1.65; }
+  .legend b { color: var(--ink3); font-weight: 600; }
+  .flow { margin-top: 22px; }
+  .flow h2, .right h2 { margin: 0 0 12px; font-family: var(--mono); font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .right { padding-top: 24px; display: flex; flex-direction: column; }
+  .stats { margin-top: auto; grid-template-columns: repeat(3, 1fr); }
+  .stat { padding: 11px 14px; }
+  .stat b { font-size: 34px; }
+  .stat span { font-size: 10px; letter-spacing: 1px; margin-top: 6px; }
+  pre { font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap cols">
+  <div class="top">
+    <div>
+      <div class="num">09 / 10</div>
+      <h1>The whole day is a receipt.<br />Scrub to any event.</h1>
+    </div>
+    <div class="stamp">GET /registry/replay<br />1 103 rows · append-only<br />read live 2026-11-08 21:40 · <b>REV A</b></div>
+  </div>
+
+  <div>
+    <div class="dek">Nothing is stored as a snapshot. Every claim, release, merge, queue, conflict and resolver run is <b>one append-only row</b>; <b>?replay</b> walks the log from zero to the row you point at and rebuilds the entire screen from it.</div>
+
+    <div class="flow">
+      <h2>How a frame is rebuilt</h2>
+      <div class="flow-grid" style="display:grid;grid-template-columns:auto 1fr auto 1fr auto;column-gap:10px;align-items:center">
+        <div class="node">EVENT ROWS<small>id · at · kind · agent</small></div>
+        <div class="arrow"></div>
+        <div class="node">derive(0 → k)<small>pure replay, no database</small></div>
+        <div class="arrow"></div>
+        <div class="node">ONE FRAME<small>claims · waitlist · counters</small></div>
+      </div>
+    </div>
+
+    <div class="kinds">
+      <h2 class="lbl" style="margin-top:26px">What the log holds right now</h2>
+      <div class="row"><span class="nm">task</span><span class="n">322</span><span class="bar"><i style="width:100%"></i></span><span class="g">a goal was dispatched to an agent</span></div>
+      <div class="row hot"><span class="nm">claim</span><span class="n">296</span><span class="bar"><i style="width:92%"></i></span><span class="g">a footprint was granted</span></div>
+      <div class="row"><span class="nm">release</span><span class="n">165</span><span class="bar"><i style="width:51%"></i></span><span class="g">the parcel left the lock</span></div>
+      <div class="row g"><span class="nm">merge</span><span class="n">153</span><span class="bar"><i style="width:47%"></i></span><span class="g">a revision reached the trunk</span></div>
+      <div class="row"><span class="nm">queued</span><span class="n">131</span><span class="bar"><i style="width:41%"></i></span><span class="g">overlap was held, not merged blind</span></div>
+      <div class="row r"><span class="nm">conflict</span><span class="n">18</span><span class="bar"><i style="width:6%"></i></span><span class="g">a revision was refused at the gate</span></div>
+      <div class="row r"><span class="nm">resolver</span><span class="n">18</span><span class="bar"><i style="width:6%"></i></span><span class="g">one leftover hunk went to the model</span></div>
+    </div>
+
+    <div class="legend">Read from the deployed registry at <b>2026-11-08 21:40</b>. The log reconciles the screen: <b>171</b> merge attempts on the counter = <b>153</b> landed + <b>18</b> refused at the gate. Nothing counted twice, nothing missing.</div>
+  </div>
+
+  <div class="right">
+    <h2>Replay, on screen</h2>
+    <figure class="shot" style="margin:0">
+      <img src="shots/e-sweep.jpg" alt="Tributary dashboard in replay mode with the scrub bar" />
+      <figcaption>tributary.persidian.com/?replay · 1 103 events</figcaption>
+    </figure>
+    <h2 style="margin-top:22px">The contract</h2>
+    <pre>GET /registry/replay
+  → { events: [ { id, at, kind, agentId, detail } ] }
+
+<b>append-only</b> · no UPDATE, no DELETE
+the live feed reads the last 40 rows
+replay reads the whole retained history
+
+state at k = fold(events[0..k])
+<b>the past is a function of the log</b></pre>
+    <div class="stats">
+      <div class="stat"><b>1 103</b><span>event rows</span></div>
+      <div class="stat"><b>0</b><span>rewrites</span></div>
+      <div class="stat"><b>153</b><span>landed</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · verified merge control for agent swarms · tributary.persidian.com · counters read live 2026-11-08 21:40</div>
+    <div class="r">HISTORY, NOT MEMORY</div>
+  </div>
+</div></div>
+</body>
+</html>

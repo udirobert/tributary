@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — 07 / residual conflict</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .body { display: grid; grid-template-columns: 1fr 660px; gap: 40px; margin-top: 22px; flex: 1; }
+  .shot img { aspect-ratio: 16 / 9; }
+  .merge { display: grid; gap: 8px; margin-top: 18px; }
+  .hunk { display: grid; grid-template-columns: 1fr 190px; align-items: center; gap: 14px; border: 1px solid var(--rule); border-left: 5px solid var(--green); background: rgba(255,255,255,.4); padding: 10px 14px; font-family: var(--mono); font-size: 14.5px; color: var(--ink3); }
+  .hunk.res { border-left-color: var(--red); background: rgba(200,64,42,.06); }
+  .hunk .v { text-align: right; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--green); font-weight: 600; }
+  .hunk.res .v { color: var(--red); }
+  .hunk small { display: block; color: var(--dim); font-size: 12px; margin-top: 3px; letter-spacing: .4px; }
+  .stats { margin-top: auto; }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">07 / 10 · residual conflict</div>
+      <h1>The model gets the leftover.<br />Never the whole merge.</h1>
+    </div>
+    <div class="stamp">src/resolver.ts<br />vultr serverless inference<br />glm-5.3 · <b>REV A</b></div>
+  </div>
+
+  <div class="body">
+    <div>
+      <div class="dek">A real three-way merge runs first and settles most of the change mechanically. Tributary then sends the model <b>only the hunk that survived</b> — a smaller prompt, a diff you can read, and no room to rewrite what already agreed.</div>
+      <div class="merge">
+        <div class="hunk"><span>src/auth/session.ts<small>both sides, disjoint ranges</small></span><span class="v">auto-merged</span></div>
+        <div class="hunk"><span>src/auth/token.ts<small>same function, non-overlapping edits</small></span><span class="v">auto-merged</span></div>
+        <div class="hunk"><span>src/auth/routes.ts<small>additive import block</small></span><span class="v">auto-merged</span></div>
+        <div class="hunk res"><span>src/auth/verify.ts<small>overlapping hunk · 11 lines</small></span><span class="v">residual → llm</span></div>
+      </div>
+      <pre style="margin-top:18px">resolver input  · one hunk · base / ours / theirs
+<span class="bad">never sent</span>      · the hunks the merge already settled
+                · the files the change never touched
+after             · the answer is re-verified at the gate</pre>
+      <div class="stats">
+        <div class="stats stats-inner" style="display:grid;margin-top:0">
+          <div class="stat"><b>18</b><span>resolver runs on the live trunk</span></div>
+          <div class="stat"><b>1</b><span>hunk per prompt, never a whole diff</span></div>
+          <div class="stat"><b>0</b><span>resolutions that skipped the gate</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <figure class="shot" style="margin:0">
+        <img src="shots/c-resolver.jpg" alt="A residual conflict being resolved on the live plan" />
+        <figcaption>the rapids, live</figcaption>
+      </figure>
+      <h2 class="lbl" style="margin-top:24px">What the resolver is handed</h2>
+      <div class="kv">
+        <div class="cell"><div class="k">Input</div><div class="v">one hunk</div></div>
+        <div class="cell"><div class="k">Context</div><div class="v">base · ours · theirs</div></div>
+        <div class="cell"><div class="k">Output</div><div class="v">replacement hunk</div></div>
+        <div class="cell"><div class="k">Not sent</div><div class="v">settled hunks</div></div>
+        <div class="cell"><div class="k">Not sent</div><div class="v">untouched files</div></div>
+        <div class="cell"><div class="k">After</div><div class="v">re-verify at gate</div></div>
+      </div>
+      <pre style="font-size:13px">example hunk · src/auth/verify.ts
+<span class="bad">-  return jwt.verify(token, KEY);</span>
+<span class="bad">-  // legacy path kept for v1 clients</span>
+<b>+  return jwt.verify(token, KEY, { clockTolerance: 0 });</b></pre>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · the mechanical pass is free; the model is the last resort, not the first call</div>
+    <div class="r">RESIDUAL ONLY</div>
+  </div>
+</div></div>
+</body>
+</html>

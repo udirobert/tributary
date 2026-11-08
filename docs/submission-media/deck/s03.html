@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — 03 / the rules we drew</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .body { display: grid; grid-template-columns: 1fr 620px; gap: 46px; margin-top: 26px; flex: 1; }
+  .cl .nm { width: 430px; }
+  .rulecard { border: 1.6px solid var(--ink3); background: rgba(255,255,255,.42); padding: 22px 24px; }
+  .rulecard h3 { margin: 0; font-family: var(--display); font-size: 30px; letter-spacing: .8px; color: var(--ink3); }
+  .rulecard p { margin: 12px 0 0; font-size: 17.5px; line-height: 1.5; color: var(--ink); }
+  .rulecard p b { color: var(--ink3); }
+  .rulecard + .rulecard { margin-top: 18px; }
+  .rulecard .tag { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--amber); margin-bottom: 10px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">03 / 10 · the rules we drew</div>
+      <h1>Four clauses.<br />One mechanism each.</h1>
+    </div>
+    <div class="stamp">every clause is a code path,<br />not a policy document<br /><b>REV A</b></div>
+  </div>
+
+  <div class="body">
+    <div class="clauses">
+      <div class="cl"><span class="no">01</span><span class="nm">DECLARED FOOTPRINT</span><span class="gl">an agent names the files it may touch before it touches one</span></div>
+      <div class="cl"><span class="no">02</span><span class="nm">SERIAL MERGE</span><span class="gl">CP-01 admits one revision at a time; the rest wait as parcels</span></div>
+      <div class="cl g"><span class="no">03</span><span class="nm">SANDBOX GATE</span><span class="gl">a throwaway container runs the repo's own verify command</span></div>
+      <div class="cl"><span class="no">04</span><span class="nm">RESIDUAL ONLY</span><span class="gl">the model sees the leftover hunk, never the whole merge</span></div>
+
+      <div class="stats" style="margin-top:auto">
+        <div class="stat"><b>4</b><span>clauses, each enforced in code</span></div>
+        <div class="stat"><b>1</b><span>integration in flight at CP-01</span></div>
+        <div class="stat"><b>0</b><span>merges sent to a model in full</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="rulecard">
+        <span class="tag">Why a footprint, not a lock</span>
+        <h3>Declare before you write</h3>
+        <p>A lock serialises everything and kills throughput. A <b>declared footprint</b> lets ten agents work at once and only stops the two that reach for the same file — and it stops them <b>before</b> the write, with a reason attached.</p>
+      </div>
+      <div class="rulecard">
+        <span class="tag">Why the model only sees the leftover</span>
+        <h3>Residual, not total</h3>
+        <p>Three-way merge settles most conflicts mechanically. Tributary sends the model <b>only the hunk that survived</b> the mechanical pass — smaller prompts, fewer hallucinated rewrites, and a diff you can actually read.</p>
+      </div>
+      <div class="rulecard">
+        <span class="tag">Why nothing lands on a green branch</span>
+        <h3>Prove it in the sandbox</h3>
+        <p>The repo's own <b>verify command</b> runs against the merged result in a container with no network and no privileges. Exit 0 or the revision never reaches the trunk.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · src/index.ts · src/agent.ts · src/merge.ts · src/resolver.ts · server/sandbox.ts</div>
+    <div class="r">THE THESIS</div>
+  </div>
+</div></div>
+</body>
+</html>

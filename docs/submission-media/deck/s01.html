@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — title card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #f5efe2; --ink: #22304a; --ink2: #2c5f8a; --ink3: #10233f;
+    --green: #2f6b4f; --red: #c8402a; --amber: #9a6a1f; --dim: #6b7686;
+    --rule: rgba(16,35,63,.34);
+    --display: "Anton", "Arial Narrow", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --ui: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(1200px 780px at 6% -10%, rgba(44,95,138,.12), transparent 58%),
+      radial-gradient(900px 620px at 96% 2%, rgba(200,64,42,.07), transparent 55%),
+      linear-gradient(180deg, #efe7d5, var(--paper) 42%, #e7dcc6);
+    color: var(--ink); font-family: var(--ui); -webkit-font-smoothing: antialiased;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+  }
+  .sheet { position: absolute; inset: 34px; border: 2px solid var(--ink3); }
+  .sheet::before { content: ""; position: absolute; inset: 7px; border: 1px solid var(--rule); }
+  .grid { position: absolute; inset: 7px; display: grid; grid-template-columns: 1010px 1fr; }
+  .left { padding: 96px 0 0 92px; }
+  .kicker { font-family: var(--mono); font-size: 17px; letter-spacing: 3.4px; color: var(--amber); text-transform: uppercase; }
+  .kicker span { color: var(--dim); }
+  h1 { margin: 26px 0 0; font-family: var(--display); font-size: 176px; line-height: .84; letter-spacing: 1px; color: var(--ink3); }
+  .rule { margin: 30px 0 22px; height: 3px; background: var(--ink3); width: 720px; position: relative; }
+  .rule::after { content: ""; position: absolute; left: 0; bottom: -6px; width: 300px; height: 1px; background: var(--rule); }
+  .sub { font-family: var(--mono); font-size: 25px; font-weight: 500; letter-spacing: 1.6px; color: var(--ink2); text-transform: uppercase; }
+  .tag { margin-top: 34px; font-size: 33px; line-height: 1.34; color: var(--ink); max-width: 700px; font-weight: 500; }
+  .tag b { color: var(--ink3); font-weight: 700; }
+  .tag em { font-style: normal; color: var(--green); }
+  .meta { position: absolute; left: 92px; bottom: 74px; width: 880px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .meta .cell .k { font-family: var(--mono); font-size: 12px; letter-spacing: 1.6px; color: var(--dim); text-transform: uppercase; }
+  .meta .cell .v { font-family: var(--mono); font-size: 16.5px; color: var(--ink3); margin-top: 5px; letter-spacing: .2px; }
+  .right { position: relative; border-left: 1px solid var(--rule); }
+  .stamp { position: absolute; right: 44px; top: 44px; text-align: right; font-family: var(--mono); font-size: 13px; line-height: 1.85; letter-spacing: 1.2px; color: var(--ink3); }
+  .stamp b { color: var(--amber); }
+  svg.plan { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .lbl { font-family: var(--mono); font-size: 13px; letter-spacing: 1.3px; fill: var(--dim); text-transform: uppercase; }
+  .lbl.hot { fill: var(--amber); } .lbl.g { fill: var(--green); } .lbl.r { fill: var(--red); } .lbl.i { fill: var(--ink2); }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="grid">
+    <div class="left">
+      <div class="kicker">Vultr Agent Rush · Challenge 1 <span>/ Blast Radius Zero</span></div>
+      <h1>TRIBU<br />TARY</h1>
+      <div class="rule"></div>
+      <div class="sub">Verified merge control<br />for agent swarms</div>
+      <div class="tag">Many agents edit one repo at once. Tributary keeps <b>one trunk</b>, proves every merge in a <b>disposable sandbox</b>, and asks the model only for the conflict that is left. <em>Zero blast radius, on camera.</em></div>
+      <div class="meta">
+        <div class="cell"><div class="k">Live</div><div class="v">tributary.persidian.com</div></div>
+        <div class="cell"><div class="k">Sandbox</div><div class="v">Vultr · Docker · net none</div></div>
+        <div class="cell"><div class="k">Inference</div><div class="v">Vultr Serverless · GLM-5.3</div></div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="stamp">SHEET 001 / 1<br />DRAWN BY TRIBUTARY<br />SCALE <b>1 : 1</b> · REV A</div>
+      <svg class="plan" viewBox="0 0 830 940" preserveAspectRatio="xMidYMid meet">
+        <!-- survey grid -->
+        <g stroke="rgba(16,35,63,.10)" stroke-width="1">
+          <path d="M0 160H830M0 380H830M0 600H830M0 820H830" />
+          <path d="M170 0V940M380 0V940M590 0V940" />
+        </g>
+        <!-- north arrow -->
+        <g transform="translate(742,120)">
+          <circle r="26" fill="none" stroke="var(--ink3)" stroke-width="1.4" />
+          <path d="M0 -17 L7 9 L0 3 L-7 9 Z" fill="var(--ink3)" />
+        </g>
+
+        <!-- claim channels -->
+        <g fill="none" stroke-linecap="round">
+          <path d="M96 208 C 250 236, 372 322, 452 424" stroke="var(--ink2)" stroke-width="2.6" stroke-dasharray="3 9" opacity=".85" />
+          <path d="M74 318 C 236 344, 366 398, 448 442" stroke="var(--amber)" stroke-width="2.6" stroke-dasharray="3 9" opacity=".85" />
+          <path d="M120 552 C 268 540, 380 500, 452 470" stroke="var(--red)" stroke-width="2.6" stroke-dasharray="3 9" opacity=".7" />
+        </g>
+        <!-- parcels -->
+        <g fill="none" stroke-width="2">
+          <rect x="82" y="194" width="26" height="26" stroke="var(--ink2)" />
+          <rect x="60" y="304" width="26" height="26" stroke="var(--amber)" />
+          <rect x="106" y="538" width="26" height="26" stroke="var(--red)" />
+        </g>
+        <text class="lbl i" x="120" y="188">agent-7056 · 1f</text>
+        <text class="lbl hot" x="98" y="300">agent-423d · 2f</text>
+        <text class="lbl r" x="150" y="512">agent-dba7 · 1f</text>
+
+        <!-- staged yard -->
+        <g>
+          <rect x="60" y="640" width="196" height="150" fill="none" stroke="var(--ink3)" stroke-width="1.6" opacity=".8" />
+          <rect x="65" y="645" width="186" height="140" fill="none" stroke="var(--rule)" stroke-width=".9" />
+          <text class="lbl hot" x="78" y="672">Staged · CP-01</text>
+          <g fill="none" stroke="var(--amber)" stroke-width="1.8">
+            <rect x="78" y="686" width="15" height="15" /><rect x="103" y="686" width="15" height="15" /><rect x="128" y="686" width="15" height="15" />
+            <rect x="78" y="711" width="15" height="15" /><rect x="103" y="711" width="15" height="15" /><rect x="128" y="711" width="15" height="15" />
+            <rect x="78" y="736" width="15" height="15" /><rect x="103" y="736" width="15" height="15" />
+          </g>
+          <path d="M256 776 C 320 800, 392 610, 440 500" fill="none" stroke="var(--amber)" stroke-width="1.6" stroke-dasharray="4 7" opacity=".8" />
+        </g>
+
+        <!-- confluence chamber / lock -->
+        <g transform="translate(470,455)">
+          <circle r="52" fill="none" stroke="var(--ink3)" stroke-width="2" />
+          <circle r="34" fill="none" stroke="var(--ink3)" stroke-width="1" stroke-dasharray="4 6" opacity=".6" />
+          <path d="M-13 -6 v-13 a13 13 0 0 1 26 0 v13" fill="none" stroke="var(--ink3)" stroke-width="2.4" />
+          <rect x="-17" y="-6" width="34" height="26" fill="none" stroke="var(--ink3)" stroke-width="2.4" />
+          <text class="lbl" x="0" y="86" text-anchor="middle">CP-01 · serial lock</text>
+        </g>
+
+        <!-- trunk -->
+        <path d="M470 455 C 640 520, 720 660, 786 848" fill="none" stroke="var(--ink2)" stroke-width="9" stroke-linecap="round" opacity=".9" />
+        <path d="M470 455 C 640 520, 720 660, 786 848" fill="none" stroke="var(--ink3)" stroke-width="1.4" stroke-dasharray="2 10" opacity=".7" />
+        <g fill="none" stroke="var(--green)" stroke-width="2.4" opacity=".95">
+          <circle cx="556" cy="492" r="11" /><circle cx="618" cy="540" r="11" /><circle cx="672" cy="602" r="11" /><circle cx="716" cy="678" r="11" /><circle cx="752" cy="766" r="11" />
+        </g>
+        <text class="lbl i" x="700" y="880" text-anchor="end">as-built trunk</text>
+        <text class="lbl g" x="500" y="392">verified revisions only</text>
+
+        <!-- rapids -->
+        <g stroke="var(--red)" stroke-width="2.2" fill="none" opacity=".9">
+          <path d="M300 402 l10 -12 l10 12 l10 -12" /><path d="M330 452 l10 -12 l10 12 l10 -12" />
+        </g>
+        <text class="lbl r" x="282" y="418" text-anchor="end">rapids<tspan x="282" dy="18">· residual conflict</tspan></text>
+
+        <!-- scale bar -->
+        <g transform="translate(60,880)">
+          <path d="M0 0H300" stroke="var(--ink3)" stroke-width="1.4" />
+          <path d="M0 -6V6M75 -4V4M150 -6V6M225 -4V4M300 -6V6" stroke="var(--ink3)" stroke-width="1.4" />
+          <text class="lbl" x="0" y="26">blast radius: contained</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+</body>
+</html>

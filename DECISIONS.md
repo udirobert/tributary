@@ -641,3 +641,46 @@ script `node --check`, and agent-browser QA with synthetic pointer events for
 both interlink directions, click-to-drawer, staged-parcel tooltips, live/queued
 /merging/rejected states, reduced-motion, replay, and an empty console. Pixels
 were approved by the owner before commit.
+
+## Submission film + slide deck (Nov 8, 2026)
+
+**Built:** a 1:55.87 HyperFrames demo film (`docs/submission-media/film/`) and
+ten 1920×1080 slide sheets (`docs/submission-media/deck/`) sharing one design
+language — paper `#f5efe2` with feTurbulence grain, ink `#22304a`, Anton for
+display, IBM Plex Mono for labels, Inter for UI, and a double-rule border. The
+film is 18 clips: six drawn cards plus twelve live screen captures taken from
+the running deployment; the deck reuses the same sheet as ten static pages.
+
+**Decisions made for honesty, not looks:**
+
+- **Nothing on screen is invented.** An early card tallied "41 / 12 / 0"; those
+  numbers had no source, so the card now asks the three questions a swarm repo
+  cannot answer and shows "?" glyphs instead. Every remaining figure is read
+  from the live registry, and `docs/submission-media/README.md` records the
+  three `curl … | jq` commands that re-derive them.
+- **Counters reconciled, not rounded.** `/config` counts 171 merge attempts on
+  both branches of `recordMergeResult` (`src/index.ts:514`), so 171 = 153
+  landed + 18 refused; the deck says "merge attempts" where the dashboard says
+  "merges landed" and explains the gap rather than papering over it. That
+  dashboard label is a real bug and is left open deliberately — fixing it
+  means re-shooting the capture it appears in.
+- **Caption band as a design element.** Subtitles are burned with libass
+  (`~/.local/bin/ffmpeg`; the Homebrew build has no libass) onto a translucent
+  paper strip, `BorderStyle=3` + `BackColour=&H2AE2EFF5`, IBM Plex Mono at
+  FontSize 11 with 40 px side margins in PlayResY=288 space. The strip covers
+  the site's own microtext, which reads as a receipt band rather than an
+  accident.
+- **Print scale is forced, not chosen.** Chromium caps page size at 200 in, so
+  the deck prints at 1000×562.5 CSS px (0.5208 of the 1920×1080 canvas) instead
+  of 1:1. The slide documents are fixed-size, so nothing reflows.
+- **The video is not committed.** YouTube is the canonical host for the film;
+  the repo keeps the composition, the sidecar SRT and the deck sources so the
+  render is reproducible from what's in git. `docs/SUBMISSION.md` carries a
+  placeholder for the URL.
+
+Verification: `npx hyperframes check` clean (0 errors, 19/19 text elements AA),
+`snapshot` eyeballed at each card midpoint, and each slide shot at 1920×1080 by
+`shoot-deck.mjs` with an overflow/scroll assertion. One standing warning is
+accepted and documented — 86 micro-type elements in the paper-grain texture sit
+below the 28 px legibility floor and are decoration, not copy. Pixels approved
+by the owner before delivery.

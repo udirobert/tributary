@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — 06 / the control plane</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .body { display: grid; grid-template-columns: 1fr 500px; gap: 40px; margin-top: 22px; flex: 1; }
+  .shot img { aspect-ratio: 16 / 9; }
+  .p1 { left: 3.2%; top: 8.5%; } .p2 { left: 46%; top: 33%; } .p3 { left: 78%; top: 12%; }
+  .p4 { left: 78%; top: 62%; } .p5 { left: 3.2%; top: 82%; }
+  .legend { display: grid; gap: 0; }
+  .legend li { list-style: none; display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--rule); align-items: start; }
+  .legend .n { width: 28px; height: 28px; border: 1.6px solid var(--ink3); border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--ink3); }
+  .legend b { display: block; font-family: var(--display); font-size: 21px; letter-spacing: .6px; color: var(--ink3); margin-bottom: 4px; }
+  .legend span { font-family: var(--mono); font-size: 13.5px; line-height: 1.5; color: var(--ink2); }
+  .legend .g { border-color: var(--green); color: var(--green); }
+  .legend .r { border-color: var(--red); color: var(--red); }
+  .legend .a { border-color: var(--amber); color: var(--amber); }
+  .count { margin-top: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .count .c { border: 1px solid var(--rule); border-top: 2px solid var(--ink3); background: rgba(255,255,255,.34); padding: 11px 13px; }
+  .count b { display: block; font-family: var(--display); font-size: 30px; color: var(--ink3); line-height: 1; }
+  .count span { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--dim); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">06 / 10 · the control plane</div>
+      <h1>One screen that answers<br />every question you would ask.</h1>
+    </div>
+    <div class="stamp">tributary.persidian.com<br />live on nuncio-vultr<br />captured 2026-11-08 · <b>REV A</b></div>
+  </div>
+
+  <div class="body">
+    <figure class="shot" style="margin:0">
+      <img src="shots/a-wide.jpg" alt="Tributary control plane, live" />
+      <span class="pin p1">1</span><span class="pin a p2">2</span><span class="pin g p3">3</span>
+      <span class="pin r p4">4</span><span class="pin p5">5</span>
+      <figcaption>no mock — this is the deployed app</figcaption>
+    </figure>
+
+    <div class="legend">
+      <ul style="margin:0;padding:0">
+        <li><span class="n">1</span><div><b>The plan</b><span>agents, channels, the CP-01 lock and the trunk — the map is rendered from live state, and every node is clickable.</span></div></li>
+        <li><span class="n a">2</span><div><b>The watershed</b><span>claims in flight, parcels waiting, rapids where a conflict is being settled.</span></div></li>
+        <li><span class="n g">3</span><div><b>The dispatch rail</b><span>goal, agent id and declared footprint. Submit here and the same run appears below.</span></div></li>
+        <li><span class="n r">4</span><div><b>The ledger</b><span>one row per task with its exit status and reason. Click a row and the drawer opens on the diff.</span></div></li>
+        <li><span class="n">5</span><div><b>The counters</b><span>read straight off the registry — not a demo fixture.</span></div></li>
+      </ul>
+      <div class="count">
+        <div class="c"><b>171</b><span>merge attempts counted</span></div>
+        <div class="c"><b>131</b><span>conflicts prevented</span></div>
+        <div class="c"><b>18</b><span>resolver runs</span></div>
+        <div class="c"><b>0</b><span>queue depth</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · map ⇄ ledger are linked: point at the water, read the book</div>
+    <div class="r">LIVE CONTROL PLANE</div>
+  </div>
+</div></div>
+</body>
+</html>

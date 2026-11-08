@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<title>Tributary — demo film</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "anton"; font-style: normal; font-weight: 400; src: url("fonts/woff2/anton-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "mono"; font-style: normal; font-weight: 400; src: url("fonts/woff2/mono-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "mono"; font-style: normal; font-weight: 500; src: url("fonts/woff2/mono-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "mono"; font-style: normal; font-weight: 600; src: url("fonts/woff2/mono-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "ui"; font-style: normal; font-weight: 400; src: url("fonts/woff2/ui-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "ui"; font-style: normal; font-weight: 500; src: url("fonts/woff2/ui-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "ui"; font-style: normal; font-weight: 600; src: url("fonts/woff2/ui-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "ui"; font-style: normal; font-weight: 700; src: url("fonts/woff2/ui-700-normal.woff2") format("woff2"); }
+
+  :root {
+    --paper: #f5efe2; --ink: #22304a; --ink2: #2c5f8a; --ink3: #10233f;
+    --green: #2f6b4f; --red: #c8402a; --redtxt: #ab3220; --amber: #8d611c; --dim: #5b6472;
+    --rule: rgba(16,35,63,.30);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+  /* ── the sheet every rendered card is drawn on ───────────────────── */
+  .plate {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(1200px 780px at 4% -10%, rgba(44,95,138,.11), transparent 58%),
+      radial-gradient(900px 620px at 98% 0%, rgba(200,64,42,.06), transparent 55%),
+      linear-gradient(180deg, #efe7d5, var(--paper) 44%, #e8ddc8);
+  }
+  .grain {
+    position: absolute; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+  }
+  .card { position: absolute; inset: 0; }
+  .sheet { position: absolute; inset: 28px; border: 2px solid var(--ink3); }
+  .sheet::before { content: ""; position: absolute; inset: 6px; border: 1px solid var(--rule); }
+  .body { position: absolute; inset: 34px; padding: 42px 56px; }
+
+  .kick { font-family: mono; font-size: 14px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--amber); }
+  .sheetno { position: absolute; top: 42px; right: 56px; font-family: mono; font-size: 12px; letter-spacing: 1.5px; color: var(--dim); text-align: right; line-height: 1.8; }
+  h2 { margin: 0; font-family: anton; font-weight: 400; letter-spacing: 1px; color: var(--ink3); }
+  .foot { position: absolute; left: 56px; right: 56px; bottom: 34px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 2px solid var(--ink3); padding-top: 10px; }
+  .foot .l { font-family: mono; font-size: 12.5px; letter-spacing: 1.1px; color: var(--dim); }
+  .foot .r { font-family: anton; font-weight: 400; font-size: 19px; letter-spacing: .8px; color: var(--ink3); }
+
+  /* ── live footage ────────────────────────────────────────────────── */
+  .shot { position: absolute; inset: 0; width: 1920px; height: 1080px; object-fit: cover; background: #000; }
+
+  /* ── S01 title ───────────────────────────────────────────────────── */
+  #c-s01 .wordmark { font-family: anton; font-weight: 400; font-size: 168px; line-height: 1; letter-spacing: -1px; color: var(--ink3); margin: 18px 0 0; }
+  #c-s01 .wordmark > div { overflow: hidden; }
+  #c-s01 .wordmark span { display: block; }
+  #c-s01 .rule { width: 860px; height: 2px; background: var(--ink3); margin: 26px 0 20px; }
+  #c-s01 .sub { font-family: mono; font-size: 21px; letter-spacing: 2.6px; color: var(--ink2); line-height: 1.5; }
+  #c-s01 .tag { font-family: ui; font-weight: 500; font-size: 25px; color: var(--green); margin-top: 16px; letter-spacing: .2px; }
+  #c-s01 .left { position: absolute; left: 92px; top: 132px; width: 880px; }
+  #c-s01 .plan { position: absolute; right: 74px; top: 116px; width: 760px; height: 820px; }
+  #c-s01 .meta { position: absolute; left: 92px; bottom: 92px; width: 900px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
+  #c-s01 .meta .cell { border-top: 2px solid var(--ink3); padding-top: 12px; }
+  #c-s01 .meta .k { font-family: mono; font-size: 14px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--dim); }
+  #c-s01 .meta .v { font-family: mono; font-size: 18px; color: var(--ink3); margin-top: 8px; letter-spacing: .2px; white-space: nowrap; }
+
+  /* ── S02 problem ─────────────────────────────────────────────────── */
+  #c-s02 .head { position: absolute; left: 92px; top: 150px; width: 820px; }
+  #c-s02 h2 { font-size: 104px; line-height: .96; margin-top: 20px; }
+  #c-s02 h2 .bad { color: var(--red); }
+  #c-s02 .dek { font-family: ui; font-size: 24px; line-height: 1.5; color: var(--ink); margin-top: 26px; max-width: 700px; }
+  #c-s02 .stack { position: absolute; right: 92px; top: 190px; width: 740px; }
+  #c-s02 .stack .t { font-family: mono; font-size: 13px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; }
+  #c-s02 .row { display: flex; align-items: center; gap: 16px; border: 1.4px solid var(--rule); border-left: 5px solid var(--amber); background: rgba(255,255,255,.42); padding: 12px 16px; margin-bottom: 9px; font-family: mono; font-size: 17px; color: var(--ink3); }
+  #c-s02 .row .f { color: var(--dim); font-size: 15px; }
+  #c-s02 .row.clash { border-left-color: var(--red); }
+  #c-s02 .row .x { margin-left: auto; color: var(--redtxt); font-size: 15px; font-weight: 600; letter-spacing: 1.4px; }
+  #c-s02 .unasked { position: absolute; left: 92px; bottom: 236px; font-family: mono; font-size: 14px; letter-spacing: 2.2px; text-transform: uppercase; color: var(--dim); }
+  #c-s02 .tally { position: absolute; left: 92px; bottom: 116px; display: flex; gap: 54px; }
+  #c-s02 .tally .n { font-family: anton; font-weight: 400; font-size: 74px; color: var(--red); line-height: 1; }
+  #c-s02 .tally .k { font-family: mono; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin-top: 8px; }
+
+  /* ── S03 thesis ──────────────────────────────────────────────────── */
+  #c-s03 .head { position: absolute; left: 92px; top: 138px; }
+  #c-s03 h2 { font-size: 78px; line-height: 1; margin-top: 16px; }
+  #c-s03 .clauses { position: absolute; left: 92px; right: 92px; top: 330px; }
+  #c-s03 .cl { display: flex; align-items: baseline; gap: 26px; padding: 24px 0; border-bottom: 1px solid var(--rule); }
+  #c-s03 .cl .no { font-family: mono; font-size: 15px; letter-spacing: 1.4px; color: var(--amber); border: 1.4px solid var(--amber); padding: 4px 9px; }
+  #c-s03 .cl .nm { font-family: anton; font-weight: 400; font-size: 40px; letter-spacing: .8px; color: var(--ink3); width: 470px; }
+  #c-s03 .cl .gl { font-family: mono; font-size: 17px; letter-spacing: .4px; color: var(--ink2); }
+  #c-s03 .cl.g .nm { color: var(--green); }
+  #c-s03 .lives { position: absolute; left: 92px; right: 92px; bottom: 148px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+  #c-s03 .lv { border-top: 2px solid var(--ink3); padding-top: 16px; }
+  #c-s03 .lv .k { font-family: mono; font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim); }
+  #c-s03 .lv .v { font-family: mono; font-size: 20px; font-weight: 500; color: var(--ink3); margin-top: 9px; letter-spacing: .2px; }
+
+  /* ── S15 containment lab ─────────────────────────────────────────── */
+  #c-s15 .head { position: absolute; left: 92px; top: 132px; right: 92px; }
+  #c-s15 h2 { font-size: 74px; line-height: 1; margin-top: 14px; }
+  #c-s15 h2 .z { color: var(--green); }
+  #c-s15 .probes { position: absolute; left: 92px; right: 92px; top: 340px; }
+  #c-s15 .pr { display: grid; grid-template-columns: 300px 470px 1fr 170px; align-items: center; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  #c-s15 .pr .p { font-family: mono; font-size: 20px; font-weight: 600; letter-spacing: .4px; color: var(--ink3); }
+  #c-s15 .pr .w { font-family: mono; font-size: 15px; color: var(--dim); }
+  #c-s15 .pr .o { font-family: mono; font-size: 16px; color: var(--ink2); }
+  #c-s15 .pr .v { display: flex; justify-content: flex-end; }
+  #c-s15 .chip { display: block; font-family: mono; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; padding: 6px 12px; border: 1.6px solid var(--green); color: var(--green); background: rgba(47,107,79,.07); }
+  #c-s15 .stamp { position: absolute; right: 92px; bottom: 128px; white-space: nowrap; font-family: anton; font-weight: 400; font-size: 44px; letter-spacing: 1px; color: var(--green); border: 3px solid var(--green); padding: 10px 22px; }
+
+  /* ── S16 architecture ────────────────────────────────────────────── */
+  #c-s16 .head { position: absolute; left: 92px; top: 138px; }
+  #c-s16 h2 { font-size: 68px; line-height: 1; margin-top: 14px; }
+  #c-s16 svg { position: absolute; left: 92px; top: 292px; width: 1736px; height: 620px; }
+  #c-s16 .nd { fill: rgba(255,255,255,.5); stroke: var(--ink3); stroke-width: 1.8; }
+  #c-s16 .nd.core { stroke-width: 3; fill: rgba(44,95,138,.08); }
+  #c-s16 .nd.net { stroke: var(--red); }
+  #c-s16 .nd.ai { stroke: var(--ink2); }
+  #c-s16 .t1 { font-family: anton; font-weight: 400; font-size: 27px; letter-spacing: .8px; fill: var(--ink3); }
+  #c-s16 .t2 { font-family: mono; font-size: 14px; letter-spacing: 1.1px; fill: var(--dim); }
+  #c-s16 .wire { fill: none; stroke: var(--ink3); stroke-width: 1.6; }
+  #c-s16 .cap { font-family: mono; font-size: 13px; letter-spacing: 1.3px; fill: var(--ink2); text-transform: uppercase; }
+
+  /* ── S18 close ───────────────────────────────────────────────────── */
+  #c-s18 .center { position: absolute; left: 92px; top: 250px; width: 1736px; text-align: center; }
+  #c-s18 h2 { font-size: 96px; line-height: 1; letter-spacing: 2px; }
+  #c-s18 .stamp { display: block; width: fit-content; white-space: nowrap; margin: 34px auto 0; font-family: anton; font-weight: 400; font-size: 132px; letter-spacing: 3px; color: var(--green); border: 6px solid var(--green); padding: 12px 44px; background: rgba(47,107,79,.06); }
+  #c-s18 .lines { position: absolute; left: 92px; right: 92px; bottom: 150px; display: flex; justify-content: center; gap: 78px; }
+  #c-s18 .lines .k { font-family: mono; font-size: 12px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--dim); }
+  #c-s18 .lines .v { font-family: mono; font-size: 19px; color: var(--ink3); margin-top: 7px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="115.835">
+  <div class="plate"></div>
+  <div class="grain"></div>
+
+  <!-- music bed: crossfade-looped from the retrieved track, -17 LUFS -->
+  <audio id="bed" src="media/bed.mp3" data-start="0" data-duration="115.835" data-track-index="4" data-volume="0.9"></audio>
+
+  <!-- ══ S01 · title ══════════════════════════════════════════════════ -->
+  <section id="c-s01" class="clip card" data-start="0" data-duration="4" data-track-index="2">
+    <div class="sheet"></div>
+    <div class="body">
+      <div class="left">
+        <div class="kick t1o">Vultr Agent Rush · Challenge 1 / Blast Radius Zero</div>
+        <div class="wordmark"><div class="wm1"><span>TRIBU</span></div><div class="wm2"><span>TARY</span></div></div>
+        <div class="rule r1"></div>
+        <div class="sub"><div class="t2o">VERIFIED MERGE CONTROL</div><div class="t2o">FOR AGENT SWARMS</div></div>
+        <div class="tag t3o">Zero blast radius, on camera.</div>
+      </div>
+      <div class="meta">
+        <div class="cell"><div class="k">Live</div><div class="v">tributary.persidian.com</div></div>
+        <div class="cell"><div class="k">Sandbox</div><div class="v">Vultr · Docker · net none</div></div>
+        <div class="cell"><div class="k">Inference</div><div class="v">Vultr Serverless · GLM-5.3</div></div>
+      </div>
+      <svg class="plan" viewBox="0 0 760 820" fill="none">
+        <g class="gridl" stroke="rgba(16,35,63,.10)" stroke-width="1">
+          <path d="M0 150H760M0 360H760M0 570H760M0 780H760" />
+          <path d="M160 0V820M360 0V820M560 0V820" />
+        </g>
+        <path class="frame pdraw" d="M14 14H746V806H14Z" stroke="var(--ink3)" stroke-width="2" />
+        <path class="chan pdraw" d="M86 196 C 226 222, 336 300, 408 388" stroke="var(--ink2)" stroke-width="2.4" stroke-dasharray="3 9" />
+        <path class="chan pdraw" d="M66 296 C 212 320, 330 372, 404 404" stroke="var(--amber)" stroke-width="2.4" stroke-dasharray="3 9" />
+        <path class="chan pdraw" d="M108 508 C 246 498, 344 462, 406 430" stroke="var(--red)" stroke-width="2.4" stroke-dasharray="3 9" />
+        <g class="pcs">
+          <rect x="72" y="182" width="24" height="24" stroke="var(--ink2)" stroke-width="2" />
+          <rect x="52" y="282" width="24" height="24" stroke="var(--amber)" stroke-width="2" />
+          <rect x="94" y="494" width="24" height="24" stroke="var(--red)" stroke-width="2" />
+        </g>
+        <g class="lockg">
+          <circle cx="424" cy="416" r="46" stroke="var(--ink3)" stroke-width="2" />
+          <circle cx="424" cy="416" r="30" stroke="var(--ink3)" stroke-width="1" stroke-dasharray="4 6" opacity=".6" />
+          <path d="M412 408v-11a12 12 0 0 1 24 0v11" stroke="var(--ink3)" stroke-width="2.4" />
+          <rect x="408" y="408" width="32" height="24" stroke="var(--ink3)" stroke-width="2.4" />
+        </g>
+        <path class="trunk pdraw" d="M424 416 C 566 470, 630 600, 674 742" stroke="var(--ink2)" stroke-width="9" stroke-linecap="round" opacity=".9" />
+        <g class="rings" stroke="var(--green)" stroke-width="2.4">
+          <circle cx="500" cy="446" r="10" /><circle cx="556" cy="486" r="10" /><circle cx="602" cy="544" r="10" /><circle cx="638" cy="618" r="10" /><circle cx="664" cy="698" r="10" />
+        </g>
+        <text class="lbl2" x="470" y="356" font-family="mono" font-size="13" letter-spacing="1.3" fill="var(--dim)">CP-01 · SERIAL LOCK</text>
+      </svg>
+      <div class="sheetno" data-layout-ignore><div>SHEET 001 / 18</div><div>DRAWN BY TRIBUTARY</div><div>SCALE <b>1 : 1</b></div></div>
+    </div>
+  </section>
+
+  <!-- ══ S02 · problem ════════════════════════════════════════════════ -->
+  <section id="c-s02" class="clip card" data-start="4" data-duration="6" data-track-index="2">
+    <div class="sheet"></div>
+    <div class="body">
+      <div class="head">
+        <div class="kick s2k">01 / the problem</div>
+        <h2><div class="s2l">TEN AGENTS.</div><div class="s2l">ONE REPO.</div><div class="s2l bad">NO CONTROL.</div></h2>
+        <div class="dek s2d">Ten agents, one trunk, and no proof of what actually landed.</div>
+      </div>
+      <div class="stack">
+        <div class="t s2t" data-layout-ignore>The same file, five times over</div>
+        <div class="row s2r"><span>agent-7056</span><span class="f">src/auth.js</span></div>
+        <div class="row s2r clash"><span>agent-423d</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+        <div class="row s2r clash"><span>agent-dba7</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+        <div class="row s2r clash"><span>agent-1f0c</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+        <div class="row s2r clash"><span>agent-9b22</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+      </div>
+      <div class="unasked s2u">Three questions a swarm repo cannot answer</div>
+      <div class="tally">
+        <div><div class="n q">?</div><div class="k">who touched this file</div></div>
+        <div><div class="n q">?</div><div class="k">what the tests ran against</div></div>
+        <div><div class="n q">?</div><div class="k">which revision is live now</div></div>
+      </div>
+      <div class="foot" data-layout-ignore><div class="l">Tributary · site plan 001</div><div class="r">THE PROBLEM</div></div>
+    </div>
+  </section>
+
+  <!-- ══ S03 · thesis ═════════════════════════════════════════════════ -->
+  <section id="c-s03" class="clip card" data-start="10" data-duration="6" data-track-index="2">
+    <div class="sheet"></div>
+    <div class="body">
+      <div class="head">
+        <div class="kick s3k">02 / the rules we drew</div>
+        <h2><div class="s3h">FOUR CLAUSES.</div><div class="s3h">ONE MECHANISM EACH.</div></h2>
+      </div>
+      <div class="clauses">
+        <div class="cl s3c"><span class="no">01</span><span class="nm">DECLARED FOOTPRINT</span><span class="gl">an agent names the files it may touch before it touches one</span></div>
+        <div class="cl s3c"><span class="no">02</span><span class="nm">SERIAL MERGE</span><span class="gl">CP-01 admits one revision at a time; the rest wait as parcels</span></div>
+        <div class="cl s3c g"><span class="no">03</span><span class="nm">SANDBOX GATE</span><span class="gl">a throwaway container runs the repo's own verify command</span></div>
+        <div class="cl s3c"><span class="no">04</span><span class="nm">RESIDUAL ONLY</span><span class="gl">the model sees the leftover hunk, never the whole merge</span></div>
+      </div>
+      <div class="lives">
+        <div class="lv s3l"><div class="k">clause 01 lives in</div><div class="v">src/agent.ts</div></div>
+        <div class="lv s3l"><div class="k">clause 02 lives in</div><div class="v">src/merge.ts</div></div>
+        <div class="lv s3l"><div class="k">clause 03 lives in</div><div class="v">server/sandbox.ts</div></div>
+        <div class="lv s3l"><div class="k">clause 04 lives in</div><div class="v">src/resolver.ts</div></div>
+      </div>
+      <div class="foot" data-layout-ignore><div class="l">Tributary · site plan 002</div><div class="r">THE THESIS</div></div>
+    </div>
+  </section>
+
+  <!-- ══ live shots ═══════════════════════════════════════════════════ -->
+  <video id="v-s04" class="clip shot" data-start="16" data-duration="4.934" data-track-index="0" src="media/S04.mp4" playsinline muted></video>
+  <video id="v-s05" class="clip shot" data-start="20.934" data-duration="6.9" data-track-index="0" src="media/S05.mp4" playsinline muted></video>
+  <video id="v-s06" class="clip shot" data-start="27.834" data-duration="9" data-track-index="0" src="media/S06.mp4" playsinline muted></video>
+  <video id="v-s07" class="clip shot" data-start="36.834" data-duration="8.034" data-track-index="0" src="media/S07.mp4" playsinline muted></video>
+  <video id="v-s08" class="clip shot" data-start="44.868" data-duration="8" data-track-index="0" src="media/S08.mp4" playsinline muted></video>
+  <video id="v-s09" class="clip shot" data-start="52.868" data-duration="6" data-track-index="0" src="media/S09.mp4" playsinline muted></video>
+  <video id="v-s10" class="clip shot" data-start="58.868" data-duration="6.967" data-track-index="0" src="media/S10.mp4" playsinline muted></video>
+  <video id="v-s11" class="clip shot" data-start="65.835" data-duration="6" data-track-index="0" src="media/S11.mp4" playsinline muted></video>
+  <video id="v-s12" class="clip shot" data-start="71.835" data-duration="6" data-track-index="0" src="media/S12.mp4" playsinline muted></video>
+  <video id="v-s13" class="clip shot" data-start="77.835" data-duration="6" data-track-index="0" src="media/S13.mp4" playsinline muted></video>
+  <video id="v-s14" class="clip shot" data-start="83.835" data-duration="8" data-track-index="0" src="media/S14.mp4" playsinline muted></video>
+
+  <!-- ══ S15 · containment lab ════════════════════════════════════════ -->
+  <section id="c-s15" class="clip card" data-start="91.835" data-duration="10" data-track-index="2">
+    <div class="sheet"></div>
+    <div class="body">
+      <div class="head">
+        <div class="kick s15k">05 / the containment lab</div>
+        <h2><div class="s15h">FIVE PROBES AGAINST THE GATE.</div><div class="s15h"><span class="z">ZERO ESCAPES.</span></div></h2>
+      </div>
+      <div class="probes">
+        <div class="pr s15r"><span class="p">fork-bomb</span><span class="w">node probe.mjs</span><span class="o">killed at 8 008 ms · exit 1 · pids capped at 64</span><span class="v"><span class="chip">Contained</span></span></div>
+        <div class="pr s15r"><span class="p">infinite-loop</span><span class="w">node probe.mjs</span><span class="o">timed out at 8 012 ms · exit 1</span><span class="v"><span class="chip">Contained</span></span></div>
+        <div class="pr s15r"><span class="p">network-egress</span><span class="w">node probe.mjs</span><span class="o">EGRESS_BLOCKED · EAI_AGAIN</span><span class="v"><span class="chip">Contained</span></span></div>
+        <div class="pr s15r"><span class="p">secret-read</span><span class="w">node probe.mjs</span><span class="o">SECRET_READ_BLOCKED · EACCES</span><span class="v"><span class="chip">Contained</span></span></div>
+        <div class="pr s15r"><span class="p">read-only-delete</span><span class="w">node probe.mjs</span><span class="o">WRITE_BLOCKED · EROFS</span><span class="v"><span class="chip">Contained</span></span></div>
+      </div>
+      <div class="stamp s15s">BLAST RADIUS: CONTAINED</div>
+      <div class="foot" data-layout-ignore><div class="l">POST /containment/lab · nuncio-vultr · docker · 2026-11-08</div><div class="r">CONTAINMENT</div></div>
+    </div>
+  </section>
+
+  <!-- ══ S16 · architecture ═══════════════════════════════════════════ -->
+  <section id="c-s16" class="clip card" data-start="101.835" data-duration="5" data-track-index="2">
+    <div class="sheet"></div>
+    <div class="body">
+      <div class="head">
+        <div class="kick s16k">06 / how it is built</div>
+        <h2><div class="s16h">ONE MODULE. TWO HOMES.</div></h2>
+      </div>
+      <svg viewBox="0 0 1736 620" fill="none">
+        <defs>
+          <marker id="ah16" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+            <path d="M0 0L12 6L0 12Z" fill="var(--ink3)" />
+          </marker>
+        </defs>
+        <path class="wire w" d="M520 156H650" marker-end="url(#ah16)" />
+        <path class="wire w" d="M1078 156H1208" marker-end="url(#ah16)" />
+        <path class="wire w" d="M760 222V340H578V420" marker-end="url(#ah16)" />
+        <path class="wire w" d="M976 222V340H1158V420" marker-end="url(#ah16)" />
+        <g class="ndg">
+          <rect class="nd core" x="658" y="90" width="420" height="132" />
+          <text class="t1" x="868" y="146" text-anchor="middle">TRIBUTARY</text>
+          <text class="t2" x="868" y="182" text-anchor="middle">one TypeScript module · the system</text>
+        </g>
+        <g class="ndg">
+          <rect class="nd" x="100" y="90" width="420" height="132" />
+          <text class="t1" x="310" y="146" text-anchor="middle">VULTR WORKERS</text>
+          <text class="t2" x="310" y="182" text-anchor="middle">nuncio-vultr · agent + merge</text>
+        </g>
+        <g class="ndg">
+          <rect class="nd" x="1216" y="90" width="420" height="132" />
+          <text class="t1" x="1426" y="146" text-anchor="middle">CLOUDFLARE WORKER</text>
+          <text class="t2" x="1426" y="182" text-anchor="middle">claim registry · serial lock</text>
+        </g>
+        <g class="ndg">
+          <rect class="nd net" x="368" y="430" width="420" height="120" />
+          <text class="t1" x="578" y="482" text-anchor="middle">DOCKER SANDBOX</text>
+          <text class="t2" x="578" y="516" text-anchor="middle">network none · read-only · 256 MB</text>
+        </g>
+        <g class="ndg">
+          <rect class="nd ai" x="948" y="430" width="420" height="120" />
+          <text class="t1" x="1158" y="482" text-anchor="middle">VULTR INFERENCE</text>
+          <text class="t2" x="1158" y="516" text-anchor="middle">GLM-5.3 · residual hunks only</text>
+        </g>
+        <text class="cap c2" data-layout-ignore x="585" y="138" text-anchor="middle">dispatch</text>
+        <text class="cap c2" data-layout-ignore x="1143" y="138" text-anchor="middle">claims</text>
+        <text class="cap c2" data-layout-ignore x="669" y="322" text-anchor="middle">gate</text>
+        <text class="cap c2" data-layout-ignore x="1063" y="322" text-anchor="middle">resolver</text>
+      </svg>
+      <div class="foot" data-layout-ignore><div class="l">TypeScript end to end · Workers runtime · serverless GPU-free inference</div><div class="r">THE BUILD</div></div>
+    </div>
+  </section>
+
+  <!-- ══ S17 · back to live ═══════════════════════════════════════════ -->
+  <video id="v-s17" class="clip shot" data-start="106.835" data-duration="4" data-track-index="0" src="media/S17.mp4" playsinline muted></video>
+
+  <!-- ══ S18 · close ══════════════════════════════════════════════════ -->
+  <section id="c-s18" class="clip card" data-start="110.835" data-duration="5" data-track-index="2">
+    <div class="sheet"></div>
+    <div class="body">
+      <div class="center">
+        <div class="kick s18k" style="text-align:center">many agents · one trunk · zero blast radius</div>
+        <h2 class="s18h" style="margin-top:18px">TRIBUTARY</h2>
+        <div class="stamp s18s">CONTAINED</div>
+      </div>
+      <div class="lines">
+        <div class="s18l"><div class="k">deployed</div><div class="v">tributary.persidian.com</div></div>
+        <div class="s18l"><div class="k">source</div><div class="v">github.com/udirobert/tributary</div></div>
+        <div class="s18l"><div class="k">built for</div><div class="v">lablab.ai · Vultr Agent Rush</div></div>
+      </div>
+      <div class="foot" data-layout-ignore><div class="l">Every number in this film is read from the live deployment · tributary.persidian.com · 2026-11-08</div><div class="r">BLAST RADIUS: CONTAINED</div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const tl = gsap.timeline({ paused: true });
+
+  // Ink-draw a path along its own length (dasharray is overwritten on purpose).
+  const drawOn = (sel, at, total) => {
+    const els = [...document.querySelectorAll(sel)];
+    els.forEach((el) => {
+      const L = el.getTotalLength();
+      el.style.strokeDasharray = `${L} ${L}`;
+      el.style.strokeDashoffset = L;
+    });
+    tl.to(els, { strokeDashoffset: 0, duration: total, ease: "power1.inOut" }, at);
+  };
+
+  /* S01 · title */
+  tl.fromTo("#c-s01 .t1o", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: .35, ease: "power2.out" }, .05);
+  tl.fromTo("#c-s01 .wm1 span", { yPercent: 110 }, { yPercent: 0, duration: .5, ease: "power4.out" }, .12);
+  tl.fromTo("#c-s01 .wm2 span", { yPercent: 110 }, { yPercent: 0, duration: .5, ease: "power4.out" }, .22);
+  tl.fromTo("#c-s01 .r1", { scaleX: 0 }, { scaleX: 1, duration: .4, ease: "power2.inOut", transformOrigin: "left center" }, .55);
+  tl.fromTo("#c-s01 .t2o", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: .35, stagger: .14, ease: "power2.out" }, .78);
+  tl.fromTo("#c-s01 .t3o", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .35, ease: "power2.out" }, 1.15);
+  tl.fromTo("#c-s01 .meta .cell", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: .32, stagger: .16, ease: "power2.out" }, 1.5);
+  tl.fromTo("#c-s01 .sheetno", { opacity: 0 }, { opacity: 1, duration: .3 }, .3);
+  tl.fromTo("#c-s01 .gridl", { opacity: 0 }, { opacity: 1, duration: .5 }, .15);
+  drawOn("#c-s01 .frame", .2, .9);
+  tl.fromTo("#c-s01 .chan", { opacity: 0 }, { opacity: 1, duration: .5, stagger: .18 }, .55);
+  tl.fromTo("#c-s01 .pcs rect", { scale: 0, opacity: 0, transformOrigin: "center" }, { scale: 1, opacity: 1, duration: .3, stagger: .14, ease: "back.out(2)" }, .9);
+  tl.fromTo("#c-s01 .lockg", { scale: .55, opacity: 0, svgOrigin: "424 416" }, { scale: 1, opacity: 1, duration: .4, ease: "back.out(1.8)" }, 1.35);
+  tl.fromTo("#c-s01 .lbl2", { opacity: 0 }, { opacity: 1, duration: .3 }, 1.6);
+  drawOn("#c-s01 .trunk", 1.7, 1.4);
+  tl.fromTo("#c-s01 .rings circle", { scale: 0, opacity: 0, transformOrigin: "center" }, { scale: 1, opacity: 1, duration: .26, stagger: .16, ease: "back.out(2.4)" }, 2.35);
+
+  /* S02 · problem */
+  tl.fromTo("#c-s02 .s2k", { opacity: 0 }, { opacity: 1, duration: .25 }, 4.1);
+  tl.fromTo("#c-s02 .s2l", { opacity: 0, x: -34 }, { opacity: 1, x: 0, duration: .4, stagger: .3, ease: "power3.out" }, 4.25);
+  tl.fromTo("#c-s02 .s2t", { opacity: 0 }, { opacity: 1, duration: .25 }, 4.6);
+  tl.fromTo("#c-s02 .s2r", { opacity: 0, x: 26 }, { opacity: 1, x: 0, duration: .3, stagger: .28, ease: "power2.out" }, 4.8);
+  tl.fromTo("#c-s02 .s2d", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: .4 }, 6.0);
+  tl.fromTo("#c-s02 .s2u", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .3 }, 6.7);
+  tl.fromTo("#c-s02 .tally", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: .3 }, 6.9);
+  tl.fromTo("#c-s02 .q", { opacity: 0, scale: 1.8, transformOrigin: "50% 65%" }, { opacity: 1, scale: 1, duration: .42, stagger: .24, ease: "power3.out" }, 7.0);
+
+  /* S03 · thesis */
+  tl.fromTo("#c-s03 .s3k", { opacity: 0 }, { opacity: 1, duration: .25 }, 10.1);
+  tl.fromTo("#c-s03 .s3h", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: .35, stagger: .18, ease: "power3.out" }, 10.2);
+  tl.fromTo("#c-s03 .s3c", { opacity: 0, x: -28 }, { opacity: 1, x: 0, duration: .4, stagger: .55, ease: "power2.out" }, 11.0);
+  tl.fromTo("#c-s03 .s3l", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: .4, stagger: .12, ease: "power2.out" }, 13.4);
+
+  /* S15 · containment lab */
+  tl.fromTo("#c-s15 .s15k", { opacity: 0 }, { opacity: 1, duration: .25 }, 91.9);
+  tl.fromTo("#c-s15 .s15h", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: .35, stagger: .2, ease: "power3.out" }, 92.0);
+  tl.fromTo("#c-s15 .s15r", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: .35, stagger: 1.15, ease: "power2.out" }, 92.9);
+  tl.fromTo("#c-s15 .chip", { scale: .7, opacity: 0, transformOrigin: "center" }, { scale: 1, opacity: 1, duration: .25, stagger: 1.15, ease: "back.out(2.2)" }, 93.5);
+  tl.fromTo("#c-s15 .s15s", { scale: 1.5, opacity: 0, rotate: -10, transformOrigin: "center" }, { scale: 1, opacity: 1, rotate: -2.4, duration: .4, ease: "power4.out" }, 99.2);
+
+  /* S16 · architecture */
+  tl.fromTo("#c-s16 .s16k", { opacity: 0 }, { opacity: 1, duration: .25 }, 101.9);
+  tl.fromTo("#c-s16 .s16h", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: .35, ease: "power3.out" }, 102.0);
+  tl.fromTo("#c-s16 .ndg", { opacity: 0, scale: .9, transformOrigin: "center" }, { opacity: 1, scale: 1, duration: .3, stagger: .35, ease: "power2.out" }, 102.4);
+  tl.fromTo("#c-s16 .w", { opacity: 0 }, { opacity: 1, duration: .3, stagger: .18 }, 102.6);
+  tl.fromTo("#c-s16 .c2", { opacity: 0 }, { opacity: 1, duration: .3, stagger: .12 }, 103.6);
+
+  /* S18 · close */
+  tl.fromTo("#c-s18 .s18k", { opacity: 0 }, { opacity: 1, duration: .3 }, 111.0);
+  tl.fromTo("#c-s18 .s18h", { opacity: 0, scale: 1.12, transformOrigin: "center" }, { opacity: 1, scale: 1, duration: .5, ease: "power3.out" }, 111.2);
+  tl.fromTo("#c-s18 .s18s", { scale: 2.1, opacity: 0, rotate: -14, transformOrigin: "center" }, { scale: 1, opacity: 1, rotate: -3, duration: .34, ease: "power4.in" }, 111.9);
+  tl.fromTo("#c-s18 .s18l", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: .3, stagger: .22 }, 112.6);
+
+  window.__timelines["main"] = tl;
+</script>
+</body>
+</html>

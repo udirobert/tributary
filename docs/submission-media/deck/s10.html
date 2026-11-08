@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — close slide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .centre { position: absolute; left: 54px; right: 54px; top: 210px; bottom: 96px; display: grid; grid-template-columns: 1fr 660px; gap: 60px; align-items: start; }
+  .mark { font-family: var(--display); font-size: 150px; line-height: .84; letter-spacing: 1.5px; color: var(--ink3); }
+  .line { margin: 30px 0 0; height: 3px; background: var(--ink3); width: 440px; }
+  .claim { margin-top: 28px; font-size: 25px; line-height: 1.44; color: var(--ink); max-width: 660px; font-weight: 500; }
+  .claim b { color: var(--ink3); }
+  .claim em { font-style: normal; color: var(--green); }
+  .stampbig { display: inline-block; margin-top: 36px; font-family: var(--display); font-size: 46px; letter-spacing: 1.4px; color: var(--green);
+    border: 3.5px solid var(--green); padding: 9px 22px; transform: rotate(-2.4deg); }
+  .right { display: flex; flex-direction: column; }
+  .addr { border: 1.6px solid var(--ink3); background: rgba(255,255,255,.42); }
+  .addr .r { display: grid; grid-template-columns: 150px 1fr; border-bottom: 1px solid var(--rule); }
+  .addr .r:last-child { border-bottom: 0; }
+  .addr .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); padding: 12px 0 12px 16px; }
+  .addr .v { font-family: var(--mono); font-size: 16.5px; color: var(--ink3); padding: 12px 16px 12px 0; font-weight: 500; }
+  .try { margin-top: 24px; border-top: 2px solid var(--ink3); padding-top: 14px; }
+  .try h2 { margin: 0 0 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .try ol { margin: 0; padding: 0; list-style: none; counter-reset: t; }
+  .try li { counter-increment: t; display: grid; grid-template-columns: 40px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+  .try li:last-child { border-bottom: 0; }
+  .try li::before { content: counter(t, decimal-leading-zero); font-family: var(--mono); font-size: 13px; color: var(--amber); padding-top: 3px; }
+  .try li span { font-size: 16px; line-height: 1.42; color: var(--ink); }
+  .try code { font-family: var(--mono); font-size: 14.5px; color: var(--ink3); }
+  .cred { margin-top: 20px; font-family: var(--mono); font-size: 12px; line-height: 1.85; letter-spacing: .6px; color: var(--dim); }
+  .cred b { color: var(--ink3); }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">10 / 10</div>
+      <h1>One trunk. Ten agents.<br />Nothing lands unverified.</h1>
+    </div>
+    <div class="stamp">SHEET 010 / 10<br />TRIBUTARY · REV A<br />2026-11-08 · <b>BLAST RADIUS ZERO</b></div>
+  </div>
+
+  <div class="centre">
+    <div>
+      <div class="mark">TRIBU<br />TARY</div>
+      <div class="line"></div>
+      <div class="claim">Verified merge control for agent swarms: <b>one trunk</b>, every revision <b>proven in a disposable sandbox</b>, and the model asked only for <b>the conflict that is left</b>. <em>Zero blast radius, on camera.</em></div>
+      <div class="stampbig">CONTAINED</div>
+    </div>
+
+    <div class="right">
+      <div class="addr">
+        <div class="r"><div class="k">live</div><div class="v">tributary.persidian.com</div></div>
+        <div class="r"><div class="k">replay</div><div class="v">tributary.persidian.com/?replay</div></div>
+        <div class="r"><div class="k">source</div><div class="v">github.com/udirobert/tributary</div></div>
+        <div class="r"><div class="k">sandbox</div><div class="v">Vultr · Docker · network none</div></div>
+        <div class="r"><div class="k">inference</div><div class="v">Vultr Serverless · GLM-5.3</div></div>
+      </div>
+
+      <div class="try">
+        <h2>Sixty seconds on it</h2>
+        <ol>
+          <li><span>Dispatch two agents onto one file — the second is <code>queued</code>, not merged.</span></li>
+          <li><span>Dispatch one outside its footprint — <code>REJECTED</code>, reason kept.</span></li>
+          <li><span>Open the rejected row: the receipt is the sandbox exit code and stdout.</span></li>
+          <li><span>Scrub <code>?replay</code> and watch the day rebuild from the log.</span></li>
+        </ol>
+      </div>
+
+      <div class="cred">
+        <b>lablab.ai · Vultr Agent Rush · Challenge 1</b><br />
+        one TypeScript module, two homes: Vultr Workers and a Cloudflare registry<br />
+        every number in this deck read live from the deployed registry
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · verified merge control for agent swarms · tributary.persidian.com · counters read live 2026-11-08 21:40</div>
+    <div class="r">THANK YOU</div>
+  </div>
+</div></div>
+</body>
+</html>

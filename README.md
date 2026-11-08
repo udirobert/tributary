@@ -163,10 +163,12 @@ Rubric fit:
 
 Executed-work proof now lands in the same sandbox: the gate runs the repo's
 `verify.cjs`/`verify.js` (or `npm test`) and returns command, stdout, stderr,
-and exit code in the task's gate evidence. Remaining before submission: a
-visible containment probe through the same sandbox path, plus deployed
-`/config` showing `sandbox: "docker"` and `ai.provider: "vultr"`. See
-`docs/VULTR_SUBMISSION.md` for the submission-aligned version.
+and exit code in the task's gate evidence. Both remaining items are now done:
+the containment probe runs visibly through the same sandbox path and is on
+screen in the demo film, and deployed `/config` reports `sandbox: "docker"`
+with `ai.provider: "vultr"`. See `docs/VULTR_SUBMISSION.md` for the
+submission-aligned version and `docs/submission-media/` for the film and deck
+sources.
 
 ### Deploying on Vultr
 
@@ -301,8 +303,9 @@ What's still simulated or unverified:
 - ⚠️ The sandbox gate now executes the repo's verification command
   (`verify.cjs`/`verify.js`, or `npm test`) inside the container/local child
   process and returns stdout/stderr/exit code as task evidence. Docker itself
-  is still unproven on a host without Docker, ESM `verify.mjs` is not yet
-  supported, and the video still needs a visible containment probe.
+  is still unproven on a host without Docker and ESM `verify.mjs` is not yet
+  supported. The containment probe is on screen in the demo film — sources in
+  `docs/submission-media/`.
 - ⚠️ Resolutions are whole-file (both sides' full content, one AI call per
   file), not per-hunk. Fine for the fixture; a real tree would want hunk-level
   granularity. The in-process semantic gate is a real AST check but

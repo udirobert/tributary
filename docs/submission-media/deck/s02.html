@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tributary — 02 / the problem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="deck.css" />
+<style>
+  .body { display: grid; grid-template-columns: 1fr 700px; gap: 46px; margin-top: 30px; flex: 1; }
+  .stack .t { font-family: var(--mono); font-size: 12px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; font-weight: 600; }
+  .tally { margin-top: auto; }
+  .why { margin-top: 26px; display: grid; gap: 12px; }
+  .why li { list-style: none; display: flex; gap: 14px; align-items: baseline; font-size: 18.5px; line-height: 1.4; color: var(--ink); }
+  .why li i { font-family: var(--mono); font-style: normal; font-size: 13px; letter-spacing: 1px; color: var(--red); border: 1.3px solid var(--red); padding: 2px 7px; flex: none; }
+  .why b { color: var(--ink3); }
+</style>
+</head>
+<body>
+<div class="sheet"><div class="wrap">
+  <div class="top">
+    <div>
+      <div class="num">02 / 10 · the problem</div>
+      <h1>Ten agents. One repo.<br /><span class="r">No control.</span></h1>
+    </div>
+    <div class="stamp">observed on a live swarm<br />nuncio-vultr · 2026-11-08<br /><b>REV A</b></div>
+  </div>
+
+  <div class="body">
+    <div>
+      <div class="dek">Every agent reads the same trunk, converges on the same three hot files, and calls itself done. Merges collide, fixes get overwritten, and at the end of the day nobody can say <b>which revision is actually live</b>.</div>
+      <ul class="why">
+        <li><i>01</i><span>Overlapping claims are resolved by <b>whoever pushes last</b>, not by the code.</span></li>
+        <li><i>02</i><span>A green check on a branch proves nothing about the <b>trunk after the merge</b>.</span></li>
+        <li><i>03</i><span>Re-running a whole merge through a model is <b>slow, expensive, and lossy</b>.</span></li>
+      </ul>
+    </div>
+
+    <div class="stack">
+      <div class="t">The same file, five times over</div>
+      <div class="row"><span>agent-7056</span><span class="f">src/auth.js</span></div>
+      <div class="row clash"><span>agent-423d</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+      <div class="row clash"><span>agent-dba7</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+      <div class="row clash"><span>agent-1f0c</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+      <div class="row clash"><span>agent-9b22</span><span class="f">src/auth.js</span><span class="x">clash</span></div>
+      <div class="t" style="margin-top:26px">What one afternoon of that costs</div>
+      <div class="stats">
+        <div class="stat bad"><b>131</b><span>overlapping claims in a single day</span></div>
+        <div class="stat bad"><b>18</b><span>conflicts no mechanical merge could settle</span></div>
+        <div class="stat"><b>0</b><span>of them allowed to land blind</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="l">Tributary · verified merge control for agent swarms · tributary.persidian.com</div>
+    <div class="r">THE PROBLEM</div>
+  </div>
+</div></div>
+</body>
+</html>

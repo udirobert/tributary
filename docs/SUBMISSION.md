@@ -128,7 +128,11 @@ engine, and spend the LLM only on the residual that reaches the rapids.
 ## Links to include in the form
 
 - **GitHub repo:** <https://github.com/udirobert/tributary>
-- **Demo video:** `<fill in>` (under 10 min; see `docs/DEMO_SCRIPT.md`)
+- **Demo video:** `<YouTube URL pending upload>` — 1:55.87, 1920×1080 @ 30 fps,
+  captions burned in, `docs/submission-media/film/` for the source and sidecar
+  SRT. The Vultr cut supersedes the 6-minute Cloudflare script in
+  `docs/DEMO_SCRIPT.md`.
+- **Slide deck:** ten 1920×1080 sheets, `docs/submission-media/deck/`
 - **Reference research:** `DECISIONS.md` in the repo
 - **Cloudflare primitives reference:**
   <https://developers.cloudflare.com/workers/runtime-apis/durable-objects/>
