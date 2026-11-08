@@ -1,7 +1,8 @@
 # Tributary — handoff checklist
 
-Last updated: Nov 8, 2026 (executed-verification gate shipped; Vultr Docker
-path verified on `nuncio-vultr` at `127.0.0.1:8788`).
+Last updated: Nov 8, 2026 (Vultr Agent Rush Challenge 1 submitted on lablab
+under team "Tributary" — demo film + slide deck delivered; project on pause
+until judging).
 
 ## Where the project stands
 
@@ -50,8 +51,10 @@ Zero”** path documented in DECISIONS.md and `docs/VULTR_SUBMISSION.md`:
 many agents, one trunk, zero blast radius. The Node/Vultr control plane is
 implemented and verified locally, on a real Vultr VM (`nuncio-vultr`), and
 publicly at `https://tributary.persidian.com` with the Docker sandbox, Vultr
-Inference (`vultr/glm-5.3-flash`), and the containment lab; the remaining
-proof is the recorded demo and lablab submission.
+Inference (`vultr/glm-5.3-flash`), and the containment lab. The demo film and
+slide deck are recorded (`docs/submission-media/`), and the project was
+submitted on lablab.ai on Nov 8 under team "Tributary" for Challenge 1 —
+Blast Radius Zero.
 
 The Nov 8 positioning pass found the visible field crowded with single-run
 containment products (generate code → sandbox → receipt). Tributary's
@@ -65,31 +68,26 @@ stderr/exit code as task evidence. The containment lab is also live:
 boundary and all five are contained on `nuncio-vultr`. Public exposure is
 also done: Coolify Traefik routes `tributary.persidian.com` to the host
 service while UFW keeps `8788` private except from Docker/Traefik sources.
-What remains for Challenge 1 is a repeatable recorded demo.
+Challenge 1 is submitted; nothing remains before judging.
 
 ## What is left
 
-1. **Record the Vultr demo.** Use `https://tributary.persidian.com` (Coolify
-   Traefik → host service on `8788`; UFW allows `8788` only from
-   `10.0.0.0/8`). Follow `docs/VULTR_SUBMISSION.md` demo beats: dashboard cold
-   open → `/demo/pack` → watershed/confluence/rapids → containment moment →
-   evidence close. Hit `POST /containment/lab` if time allows.
-   `docs/DEMO_SCRIPT.md` remains the Cloudflare cut.
+Nothing before judging — Challenge 1 was submitted on lablab.ai on Nov 8.
+Post-judging / stretch items:
 
-2. **Submit on lablab.ai.** Use `docs/VULTR_SUBMISSION.md` for title, pitch,
-   short description, architecture summary, and rubric mapping. Optionally
-   showcase on Vultr Community after the required lablab submission.
+1. **(Optional) Showcase on Vultr Community** now that the required lablab
+   submission is in.
 
-3. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
+2. **(Cloudflare stretch) Submit/polish the original challenge entry.** The
    repo and submission copy remain in `docs/SUBMISSION.md`; social preview
    still has to be set in GitHub repository settings if it has not been.
 
-4. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
+3. **(Stretch) Verify against real Artifacts** on a Workers Paid account:
    add the `[[artifacts]]` block to `wrangler.toml`, drop the
    `LOCAL_ARTIFACTS` binding and its `v2` migration, `npx wrangler login`,
    then `npm run dev` and `npm run simulate`.
 
-5. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
+4. **(Stretch) Receipts / richer gate / MCP fork tool.** Consider SHA-256
    evidence bundles for judge-verifiable receipts. The executed gate now runs
    `verify.cjs`/`verify.js` or `npm test`; the next gate upgrades are ESM
    `verify.mjs`, repo-native toolchains (tsc/eslint/test), and hunk-level
@@ -118,13 +116,14 @@ unchanged — they are plumbing, not prose. See DECISIONS.md.
   cloning the real upstream, mints opaque tokens rather than scoped Cloudflare
   tokens, keeps state in DO/Node memory or sqlite, and serializes merges with a
   single mutex/drain.
-- **Docker sandboxing is proven on `nuncio-vultr`, not yet public.** The
-  provider (`server/sandbox.ts`) ran real `node:22-alpine` gate containers on
-  the Vultr VM; the service is currently bound to `127.0.0.1:8788` behind the
-  host firewall, so the public demo URL is still pending.
-- **Vultr Inference is optional but unverified here.** Without
-  `VULTR_INFERENCE_API_KEY`, planning/resolution fall back to supplied edits
-  and deterministic yield-to-trunk behavior.
+- **Docker sandboxing is proven publicly.** The provider
+  (`server/sandbox.ts`) ran real `node:22-alpine` gate containers on the Vultr
+  VM, and `https://tributary.persidian.com` exposes the same deployment
+  through Coolify Traefik (`/config` reports `sandbox: "docker"`).
+- **Vultr Inference is configured on the deployment.** `nuncio-vultr` runs
+  with `VULTR_INFERENCE_API_KEY` set (`/config` reports
+  `vultr/glm-5.3-flash`); without the key, planning/resolution fall back to
+  supplied edits and deterministic yield-to-trunk behavior.
 - **Node mode is single-process.** The DO namespaces are singleton instances
   and the queue drain is in-process — correct for one VM control plane, not a
   distributed deployment.
