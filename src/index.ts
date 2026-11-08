@@ -6,7 +6,6 @@ import { DurableObject } from "cloudflare:workers";
 import { resolveConflict } from "./resolver";
 import { mergeTaskIntoTrunk } from "./merge";
 import { DASHBOARD_HTML } from "./dashboard";
-import { HERO_RIV_B64 } from "./rive-hero";
 import { LocalArtifacts } from "./artifacts-local";
 import {
 	enqueueAgentTask,
@@ -832,20 +831,6 @@ export default {
 						: undefined,
 				},
 			);
-		}
-
-		// The Rive hero artboard is embedded so both runtimes can serve it
-		// without a separate asset pipeline.
-		if (request.method === "GET" && url.pathname === "/hero.riv") {
-			const bin = atob(HERO_RIV_B64);
-			const bytes = new Uint8Array(bin.length);
-			for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-			return new Response(bytes, {
-				headers: {
-					"Content-Type": "application/octet-stream",
-					"Cache-Control": "public, max-age=31536000, immutable",
-				},
-			});
 		}
 
 		// Repo browser — the verified trees the merges produced, readable by

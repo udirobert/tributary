@@ -544,3 +544,35 @@ drawer, repo-browser, or config behavior changed.
 Verified locally: `prettier --check`, `tsc`, `eslint`, `npm test`, dashboard
 script `node --check`, and browser QA for live state, task drawer evidence,
 `?replay`, and reduced-motion canvas hiding.
+
+## Site Plan dashboard (Nov 8, 2026)
+
+The dashboard was rebuilt as a **Tributary Site Plan**: a paper/ink engineering
+drawing of the merge watershed instead of the dark ops console. The river/Rive
+visual layer is removed entirely — no `src/rive-hero.ts`, `/hero.riv` route,
+`assets/rive/hero`, `flowCanvas`, or esm.sh Rive runtime remains.
+
+The new surface keeps every live behavior (SSE, `?replay`, dispatch composer,
+demo pack, resolver beat, task inspection drawer, repo annex, config badges,
+reduced-motion fallbacks) but changes the composition:
+
+- claims render as hatched parcels with surveyed channels into the confluence
+  basin; waitlisted agents render as staged parcels; landed merges stamp the
+  as-built trunk; rejected work and resolver activity draw red-pen rapids
+  markup;
+- tasks become numbered survey rows in the ledger, and the evidence drawer is
+  styled as an inspection report;
+- motion is drafting/choreography rather than ambient neon particles: a
+  pixel-cell cover/reveal on load/replay, origin-aware ink blots on task
+  inspection, hatch/pattern fills, stamp-in merges, redline feed rows, and a
+  canvas drafting-FX layer for beads/ripples/conflict bursts;
+- the visual system borrows concrete techniques from the shared references —
+  Interlude-style cover/reveal + named transition helpers, Atelier North-style
+  editorial title block/index rows/pixel transitions, R3F-sketch-style hatch
+  tonal language and imperfect pen outlines, and Spite-melt-style confluence
+  particles/ripples — adapted to 2D SVG/canvas rather than WebGL.
+
+Verified locally: `prettier`, `tsc`, `eslint`, `npm test`, dashboard script
+`node --check`, and agent-browser QA for live state, `/demo/pack`, task drawer
+evidence, `?replay`, and canvas/FX mounting. Public deployment pending in the
+same change set.

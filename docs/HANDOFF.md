@@ -136,26 +136,26 @@ unchanged — they are plumbing, not prose. See DECISIONS.md.
 
 ## File map
 
-| File                       | Status   | What it does                                                                |
-| -------------------------- | -------- | --------------------------------------------------------------------------- |
-| `src/index.ts`             | core     | Routes, SQLite `ClaimRegistry` DO, task API, SSE + replay, queue consumer   |
-| `src/agent.ts`             | product  | Built-in agent: prepare (plan/claim/fork/commit) → enqueue → confluence     |
-| `src/artifacts-local.ts`   | core     | `LocalArtifacts` DO — offline Artifacts surface on isomorphic-git           |
-| `src/merge.ts`             | core     | Real three-way merge + fixture/semantic/sandbox gates                       |
-| `src/resolver.ts`          | core     | Conflict-side resolution via Workers AI / Vultr + staged clone path         |
-| `src/dashboard.ts`         | product  | Task cards, river, SSE, `?replay`, sandbox/gate evidence                    |
-| `src/memory-fs.ts`         | modified | In-memory FS for isomorphic-git                                             |
-| `server/index.ts`          | runtime  | Node/Vultr entry: `node:http` wrapper around the Worker module              |
-| `server/env-node.ts`       | runtime  | Node bindings: node:sqlite registry, serial queue, Vultr AI, sandbox        |
-| `server/sandbox.ts`        | runtime  | Docker/local containment gate; executes `verify.cjs`/`verify.js`/`npm test` |
-| `server/vultr-ai.ts`       | runtime  | OpenAI-compatible Vultr Inference adapter for `ai.run()`                    |
-| `deploy/`                  | runtime  | Vultr VM setup script, Dockerfile, compose file                             |
-| `scripts/simulate.ts`      | harness  | 5-agent end-to-end simulation, self-checking                                |
-| `scripts/test-merge.ts`    | harness  | 5-case merge-engine harness                                                 |
-| `scripts/test-node-env.ts` | harness  | Node-env queue semantics regression                                         |
-| `scripts/test-sandbox.ts`  | harness  | Executed-verification gate harness (local provider)                         |
-| `scripts/tributary.ts`     | agent    | Agent-facing CLI (`claim / fork / commit / release / run`)                  |
-| `scripts/mcp.ts`           | agent    | MCP stdio server — five lifecycle tools for agents                          |
-| `wrangler.toml`            | config   | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`            |
-| `docs/`                    | docs     | Demo script, submission copies, MCP reference, checklist, hero art          |
-| `docs/VULTR_SUBMISSION.md` | docs     | Vultr Agent Rush positioning, rubric map, demo beats, gaps                  |
+| File                       | Status   | What it does                                                                  |
+| -------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `src/index.ts`             | core     | Routes, SQLite `ClaimRegistry` DO, task API, SSE + replay, queue consumer     |
+| `src/agent.ts`             | product  | Built-in agent: prepare (plan/claim/fork/commit) → enqueue → confluence       |
+| `src/artifacts-local.ts`   | core     | `LocalArtifacts` DO — offline Artifacts surface on isomorphic-git             |
+| `src/merge.ts`             | core     | Real three-way merge + fixture/semantic/sandbox gates                         |
+| `src/resolver.ts`          | core     | Conflict-side resolution via Workers AI / Vultr + staged clone path           |
+| `src/dashboard.ts`         | product  | Site-plan dashboard, SSE, `?replay`, inspection drawer, sandbox/gate evidence |
+| `src/memory-fs.ts`         | modified | In-memory FS for isomorphic-git                                               |
+| `server/index.ts`          | runtime  | Node/Vultr entry: `node:http` wrapper around the Worker module                |
+| `server/env-node.ts`       | runtime  | Node bindings: node:sqlite registry, serial queue, Vultr AI, sandbox          |
+| `server/sandbox.ts`        | runtime  | Docker/local containment gate; executes `verify.cjs`/`verify.js`/`npm test`   |
+| `server/vultr-ai.ts`       | runtime  | OpenAI-compatible Vultr Inference adapter for `ai.run()`                      |
+| `deploy/`                  | runtime  | Vultr VM setup script, Dockerfile, compose file                               |
+| `scripts/simulate.ts`      | harness  | 5-agent end-to-end simulation, self-checking                                  |
+| `scripts/test-merge.ts`    | harness  | 5-case merge-engine harness                                                   |
+| `scripts/test-node-env.ts` | harness  | Node-env queue semantics regression                                           |
+| `scripts/test-sandbox.ts`  | harness  | Executed-verification gate harness (local provider)                           |
+| `scripts/tributary.ts`     | agent    | Agent-facing CLI (`claim / fork / commit / release / run`)                    |
+| `scripts/mcp.ts`           | agent    | MCP stdio server — five lifecycle tools for agents                            |
+| `wrangler.toml`            | config   | Binds `LOCAL_ARTIFACTS` + optional `[ai]`, omits `[[artifacts]]`              |
+| `docs/`                    | docs     | Demo script, submission copies, MCP reference, checklist, hero art            |
+| `docs/VULTR_SUBMISSION.md` | docs     | Vultr Agent Rush positioning, rubric map, demo beats, gaps                    |

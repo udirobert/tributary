@@ -67,8 +67,8 @@ Field notes from the Nov 8 research pass:
     gate evidence, and resolution provenance.
 
 - **Presentation**
-  - Live dashboard: task composer, task cards, lifecycle statuses, gate
-    badges, river visualization, SSE updates, `?replay`.
+  - Live dashboard: task composer, site-plan visualization, lifecycle statuses,
+    gate badges, SSE updates, `?replay`.
   - Deterministic `/demo/pack`: clean land, same-line conflict → resolver →
     landed, and a db rewrite rejected by executed `node verify.cjs` with
     stdout/stderr/exit-code evidence.
