@@ -43,6 +43,18 @@ npm run bench
 have been refused but reached the trunk. A false refusal wastes compute; a false
 land ships the bug.
 
+```sh
+npm run audit -- /path/to/repo          # replay real history through the gates
+npm run bench -- --cases my-cases.yaml  # replay an exported corpus
+```
+
+The audit walks a repo's first-parent history — replaying merges through
+`git merge-tree` and scanning commits for findings they introduce — then
+reports what the gate would have refused, what it would have routed to the
+resolver, and where its own coverage limits sit (`gate-limit`: files it
+cannot parse, never counted as catches). `--export` turns caught items into
+`cases.yaml` entries, so a repo's own history becomes its regression corpus.
+
 Results: [`eval_results/BENCHMARK-RESULTS.md`](eval_results/BENCHMARK-RESULTS.md) ·
 machine bundle: [`eval_results/live-benchmark.json`](eval_results/live-benchmark.json) ·
 corpus: [`eval/cases.yaml`](eval/cases.yaml).

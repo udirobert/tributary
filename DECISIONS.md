@@ -315,8 +315,8 @@ no-new-privileges --memory 256m --cpus 0.5 --pids-limit 64`. Providers:
    `docker` (required on the VM), `local` (child process, empty env,
    timeout — dev fallback), `off` (in-process gate). The in-process semantic
    gate always runs alongside; it catches the class the syntax gate can't.
-   Verification scripts are CommonJS because the semantic gate is
-   CJS-oriented; ESM `verify.mjs` is a known follow-up.
+   Verification scripts may be CJS or ESM — the sandbox syntax check uses
+   `vm.SourceTextModule` with a `vm.Script` fallback.
 6. **`AI` becomes Vultr Serverless Inference.** `server/vultr-ai.ts` is an
    OpenAI-compatible adapter (`/chat/completions`) exposing `ai.run()`;
    `VULTR_INFERENCE_MODEL` selects the model (default
@@ -684,3 +684,34 @@ Verification: `npx hyperframes check` clean (0 errors, 19/19 text elements AA),
 accepted and documented — 86 micro-type elements in the paper-grain texture sit
 below the 28 px legibility floor and are decoration, not copy. Pixels approved
 by the owner before delivery.
+
+## Post-hackathon: audit-driven gate hardening
+
+`npm run audit` (`scripts/audit.ts`) replays a repo's own history through the
+real gates — merges via `git merge-tree --write-tree`, linear commits as
+findings-deltas vs their parents — and exports caught items as `cases.yaml`
+entries (`eval/runner.ts --cases`). Dogfooding it found six false-positive
+mechanisms, each now a fix in `src/merge.ts` plus a regression case in
+`scripts/test-typescript-gate.ts`:
+
+- Arity is a window (`min..max`), not a count — optional (`?`), default (`=`)
+  and rest params are legal to underfill; `?` is recovered from the original
+  source since type-stripping is position-preserving.
+- `arguments`-variadic functions accept any argc.
+- File-local bindings (`const f = () =>`, local `function f`) shadow the
+  global pool; only module-scope declarations enter it, so a nested helper
+  can no longer collide with a top-level name in another file.
+- `require()`/member-bound names record an opaque local ({0..∞}) instead of
+  resolving against an unrelated same-named def.
+- Generated output (`dist/`, `build/`, `vendor/`, `.min.*`) and pure
+  declarations (`.d.*`) are excluded — bundled preludes are arity noise by
+  construction.
+- Gates take `FsLike` (memory-fs.ts), so the same functions run on `node:fs`
+  in `scripts/audit.ts`, `scripts/pr-gate.ts` and the GitHub Action
+  (`action.yml` + `.github/workflows/tributary-gate.yml`, dogfooded here).
+
+Measured coverage: tributary 27/27 commits clean, debug 15/15 merges +
+60/60 commits clean, axios 0 catches with 5/277 files in the parse bucket
+(~2% ceiling: non-erasable TS — `enum`, `import =`, `declare`; Node 26's
+`stripTypeScriptTypes` has no `transform` mode, so these surface as parse
+findings, never silent passes).
