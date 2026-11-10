@@ -25,7 +25,7 @@ rubric mapping, demo beats, and remaining gaps.
 
 ## Short description (max ~500 chars)
 
-> Tributary coordinates thousands of AI agents on one repo. Thesis: conflicts
+> Tributary coordinates many AI agents on one repo. Thesis: conflicts
 > are a scheduling problem first, a negotiation problem last. Each change is a
 > tributary: declared at the watershed (a Durable Object claim registry —
 > non-overlapping footprints granted, the rest queued, stale locks freed by

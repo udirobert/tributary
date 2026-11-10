@@ -2,9 +2,10 @@
 
 ![Tributary — many tributaries converging into one verified trunk](docs/hero.svg)
 
-A coordination layer for many AI agents working on one codebase — currently
-aimed at Vultr's Agent Rush Challenge 1, "Blast Radius Zero," with the
-Cloudflare "Build the next GitHub" runtime kept as an alternate.
+A coordination layer for many AI agents working on one codebase.
+
+> **Airlock reviews one PR. Errand runs one errand. Follow the Money investigates
+> one incident. Tributary lands a thousand of them without breaking the trunk.**
 
 **Many tributaries, one trunk — zero blast radius.** Every agent's change is a
 **tributary**: it is declared at the **watershed**, joins the trunk at the
@@ -30,6 +31,36 @@ three stages:
    green).
 3. **Rapids (negotiate).** Only changes that clear stages 1–2 and still
    conflict reach an LLM resolver agent — a last resort, not the core path.
+
+## Measured, not asserted
+
+```sh
+npm run bench
+```
+
+25 labelled cases, 23 scored under the local provider: **23/23 correct verdicts,
+0 false lands**. The metric that matters is **false lands** — work that should
+have been refused but reached the trunk. A false refusal wastes compute; a false
+land ships the bug.
+
+Results: [`eval_results/BENCHMARK-RESULTS.md`](eval_results/BENCHMARK-RESULTS.md) ·
+machine bundle: [`eval_results/live-benchmark.json`](eval_results/live-benchmark.json) ·
+corpus: [`eval/cases.yaml`](eval/cases.yaml).
+
+### The differentiator: conflicts git cannot see
+
+**4 of 4** semantic-conflict cases were merged _cleanly by git_ and then refused
+by the semantic gate. A signature changes in one file; a caller in another file
+was never updated. The files never touch textually, so `git merge` reports
+success — and a plain merge queue lands broken code.
+
+This is the class of breakage containment alone cannot reach. Sandboxing proves
+code is _safe to run_; it does not prove the code is _correct_. A fleet of
+sandboxed agents can each execute safely and still land a trunk that no longer
+works.
+
+**Reviewer's entry point: [`docs/JUDGES.md`](docs/JUDGES.md)** — criteria →
+evidence → the command that reproduces it.
 
 ## Architecture
 
@@ -290,31 +321,51 @@ What works end-to-end:
   `claim / release / status / fork / commit / conflict / run` — a real agent
   can drive the full lifecycle with `npm run tributary -- run <files...>`
 
-What's still simulated or unverified:
+Known limits, and what closes them:
 
-- ⚠️ `env.ARTIFACTS` path is untested against a live namespace — this
-  account is free tier and Artifacts requires a paid plan. The offline shim
-  is what the default config and the simulation exercise.
-- ⚠️ The Docker sandbox provider is implemented for the Vultr VM but was not
-  exercised on a Docker host in the latest local pass — verification used
-  `TRIBUTARY_SANDBOX=local` because Docker is not installed on the dev
-  machine. Vultr Inference was likewise unconfigured, so AI paths used their
-  deterministic fallbacks.
-- ⚠️ The sandbox gate now executes the repo's verification command
-  (`verify.cjs`/`verify.js`, or `npm test`) inside the container/local child
-  process and returns stdout/stderr/exit code as task evidence. Docker itself
-  is still unproven on a host without Docker and ESM `verify.mjs` is not yet
-  supported. The containment probe is on screen in the demo film — sources in
-  `docs/submission-media/`.
-- ⚠️ Resolutions are whole-file (both sides' full content, one AI call per
-  file), not per-hunk. Fine for the fixture; a real tree would want hunk-level
-  granularity. The in-process semantic gate is a real AST check but
-  scope-limited: exported-function arity across the merged tree,
-  bare-identifier calls only — the production shape is the repo's own
-  toolchain in the same sandbox.
-- ⚠️ `trunkStatus` reflects trunk health only — rejected merges increment
-  `rejections` and invoke the resolver but never land, so trunk stays green
-  by construction. Watch the `rejections` counter for rejection volume.
+- **`env.ARTIFACTS` is unexercised against a live namespace.** This account is
+  free tier and Artifacts requires a Workers Paid plan, so the default config
+  runs the offline shim (`src/artifacts-local.ts`). Adding the `[[artifacts]]`
+  binding switches to the real surface with no source changes.
+  _Closes with:_ a Workers Paid account.
+- **The Docker sandbox is proven on the deployed Vultr VM, not on every dev
+  machine.** `nuncio-vultr` runs real `node:22-alpine` gate containers and
+  `https://tributary.persidian.com/config` reports `sandbox: "docker"` with
+  `ai.provider: "vultr"`. On a machine without Docker the provider degrades to
+  `local` (a child process with an empty env and a hard timeout), which is
+  honest but weaker: it has no network namespace, so it cannot enforce egress
+  isolation. The benchmark reports its two containment cases as **skipped,
+  never passed**, under that provider.
+  _Closes with:_ running `npm run bench` on a Docker host.
+- **The sandbox syntax check parses ESM and TypeScript** — `vm.SourceTextModule`
+  for modules, `vm.Script` fallback for scripts, and Node's type stripping for
+  `.ts`. Files using non-erasable TS (`enum`, `import =`, `declare`) still
+  fail the gate by design.
+  _Closes with:_ a transform-capable type stripper (Node `transform` mode is
+  not available on Node 26's `stripTypeScriptTypes`).
+- **Resolutions are whole-file**, not per-hunk: one AI call per conflicted file
+  with both sides' full content. Fine for the fixture; a real tree wants
+  hunk-level granularity. _Closes with:_ hunk-scoped resolver output.
+- **The semantic gate is scope-limited** — name-matched arity across the
+  merged tree, bare-identifier calls only. It scans `.js`/`.cjs`/`.mjs` and,
+  since the TypeScript pass, `.ts`/`.tsx`/`.mts`/`.cts` (types are stripped via
+  Node's `stripTypeScriptTypes`, then the same AST walk runs). Arity is a
+  legal window, not a count: optional (`?`), default (`=`) and rest params
+  are honored, `arguments`-variadic functions accept any argc, file-local
+  bindings shadow the global pool, and `require()`-bound names are treated
+  as uncheckable rather than guessed. Generated output (`dist/`, `build/`,
+  `vendor/`, `.min.*`) and pure declarations (`.d.*`) are excluded. It is a
+  real AST check, not a heuristic, but it is not a type checker: it does not
+  follow `x.f()` member calls, aliased imports, or dynamic dispatch, and it
+  cannot read non-erasable TypeScript (`enum`, `import =`, `declare`) —
+  which shows up as a parse finding, never a silent pass. The production
+  shape is the repo's own toolchain (`tsc`, `eslint`, the test suite) inside
+  the same sandbox. _Closes with:_ repo-native toolchain gates.
+- **`trunkStatus` reflects trunk health only.** Rejected merges increment
+  `rejections` and invoke the resolver but never land, so trunk stays green by
+  construction. Watch the `rejections` counter for rejection volume.
+- **Node mode is single-process** — singleton DOs and an in-process queue
+  drain. Correct for one VM control plane, not a distributed deployment.
 
 Known assumptions and doc findings are logged in [DECISIONS.md](./DECISIONS.md).
 

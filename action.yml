@@ -1,0 +1,32 @@
+name: Tributary Gate
+description: >-
+  Run the Tributary semantic gate on a pull request: fails when the merge
+  introduces a conflict git cannot see (a signature change breaking a caller
+  in another file). The checkout's merge commit is the tree under test; the
+  verdict counts only findings this PR adds.
+inputs:
+  base-sha:
+    description: "Base commit to diff findings against (default: PR base)"
+    required: false
+    default: "${{ github.event.pull_request.base.sha }}"
+  head-sha:
+    description: "Merge/head commit to gate (default: PR merge commit)"
+    required: false
+    default: "${{ github.event.pull_request.head.sha }}"
+runs:
+  using: composite
+  steps:
+    - name: Install tributary toolchain
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Run the gate
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GITHUB_BASE_SHA: ${{ inputs.base-sha }}
+        GITHUB_SHA: ${{ inputs.head-sha }}
+      run: >-
+        ${{ github.action_path }}/node_modules/.bin/tsx
+        ${{ github.action_path }}/scripts/pr-gate.ts
+        "${{ github.workspace }}"

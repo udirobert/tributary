@@ -10,6 +10,44 @@ type Entry =
 			mtimeMs: number;
 	  };
 
+/**
+ * The fs surface the merge engine and gates actually use. `MemoryFS` is the
+ * production implementation (the confluence keeps whole repos in a Durable
+ * Object isolate); `node:fs` also satisfies it, which is what lets the audit
+ * tooling and the PR gate run the same gate code on a real checkout.
+ */
+export interface FsStatLike {
+	size: number;
+	isFile(): boolean;
+	isDirectory(): boolean;
+	isSymbolicLink(): boolean;
+}
+
+export interface FsLike {
+	promises: {
+		readFile(
+			path: string,
+			options?: string | { encoding?: string },
+		): Promise<string | Uint8Array>;
+		writeFile(
+			path: string,
+			data: string | Uint8Array | ArrayBuffer,
+			options?: string | { encoding?: string },
+		): Promise<unknown>;
+		unlink(path: string): Promise<unknown>;
+		readdir(path: string): Promise<string[]>;
+		mkdir(
+			path: string,
+			options?: { recursive?: boolean } | number,
+		): Promise<unknown>;
+		rmdir(path: string): Promise<unknown>;
+		stat(path: string): Promise<FsStatLike>;
+		lstat(path: string): Promise<FsStatLike>;
+		readlink(path: string): Promise<unknown>;
+		symlink(...args: unknown[]): Promise<unknown>;
+	};
+}
+
 function fsError(code: string, path: string) {
 	return Object.assign(new Error(`${code}: ${path}`), { code });
 }

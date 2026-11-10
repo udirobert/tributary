@@ -181,6 +181,25 @@ export interface MergeResult {
 }
 
 /**
+ * Files a task changed that it never declared. The confluence's pre-filter:
+ * work outside the declared footprint is refused before a merge is spent on
+ * it, so the watershed's promise is enforced against what the agent actually
+ * pushed, not just what it promised.
+ *
+ * Exported so the benchmark harness (eval/runner.ts) exercises this exact
+ * predicate rather than a copy of it — a benchmark that reimplements the rule
+ * it is measuring proves nothing about the rule.
+ */
+export function outOfFootprint(
+	changed: string[],
+	declared: string[],
+): string[] {
+	return changed.filter(
+		(f) => !declared.some((d) => d === f || d.endsWith(`/${f}`)),
+	);
+}
+
+/**
  * The watershed: partitions the flow so two tributaries never hold the same
  * file at once. Non-overlapping footprints are granted immediately;
  * overlapping ones are queued and promoted when the holder releases.
@@ -1229,30 +1248,27 @@ export default {
 				: task.changedFiles
 					? [task.changedFiles]
 					: ["spike.txt"];
-			const outOfFootprint = changed.filter(
-				(f: string) =>
-					!declared.some((d: string) => d === f || d.endsWith(`/${f}`)),
-			);
+			const violations = outOfFootprint(changed, declared);
 
-			if (outOfFootprint.length > 0) {
+			if (violations.length > 0) {
 				console.log(
 					`[Confluence] ❌ Footprint violation from ${task.agentId}: ` +
-						`changed ${outOfFootprint.join(", ")} outside declared ` +
+						`changed ${violations.join(", ")} outside declared ` +
 						`footprint ${declared.join(", ") || "(none)"}. Routing to the rapids.`,
 				);
 				await stub.recordMergeResult({
 					success: false,
 					agentId: task.agentId,
 					repo: task.taskRepo,
-					reason: `changed ${outOfFootprint.join(", ")} outside its declared footprint`,
+					reason: `changed ${violations.join(", ")} outside its declared footprint`,
 				});
 				if (task.taskId) {
 					await stub.updateTask(task.taskId, {
 						status: "rejected",
-						reason: `changed ${outOfFootprint.join(", ")} outside its declared footprint`,
+						reason: `changed ${violations.join(", ")} outside its declared footprint`,
 					});
 				}
-				await resolveConflict(task.agentId, task.taskRepo, outOfFootprint, {
+				await resolveConflict(task.agentId, task.taskRepo, violations, {
 					ai: env.AI,
 				});
 				continue;

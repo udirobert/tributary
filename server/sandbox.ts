@@ -39,6 +39,37 @@ const GATE_SOURCE = `import { spawnSync } from "node:child_process";
 import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
 import vm from "node:vm";
+import { stripTypeScriptTypes } from "node:module";
+
+// Module-mode parsing is the only way to validate ESM syntax; vm.Script is
+// script-mode and rejects 'export'. Requires --experimental-vm-modules, which
+// the gate's spawn sets. When unavailable, fall back to script mode.
+const SourceTextModule = vm.SourceTextModule;
+const parses = (source, filename) => {
+	if (SourceTextModule) {
+		try {
+			new SourceTextModule(source, { identifier: filename });
+			return true;
+		} catch (e) {
+			// A script-only construct (top-level return, bare 'with') still
+			// deserves a script-mode attempt before we call it broken.
+			try {
+				new vm.Script(source, { filename });
+				return true;
+			} catch {
+				console.error(filename + ": " + e.message);
+				return false;
+			}
+		}
+	}
+	try {
+		new vm.Script(source, { filename });
+		return true;
+	} catch (e) {
+		console.error(filename + ": " + e.message);
+		return false;
+	}
+};
 const root = process.cwd();
 const VERIFY_TIMEOUT_MS = 20000;
 const MARKER = "__TRIBUTARY_GATE_RESULT__";
@@ -68,9 +99,24 @@ const walk = (d) => {
 walk(root);
 let bad = packageInvalid ? 1 : 0;
 for (const f of files) {
-	if (!/\\.(mjs|cjs|js)$/.test(f)) continue;
+	if (!/\\.(mjs|cjs|js|mts|cts|ts|tsx)$/.test(f)) continue;
 	try {
-		new vm.Script(readFileSync(f, "utf8"), { filename: f });
+		let source = readFileSync(f, "utf8");
+		// TypeScript is stripped before the syntax check so a .ts file is
+		// validated as real code rather than skipped. If stripping is
+		// unavailable the file is skipped, never silently passed.
+		if (/\\.(mts|cts|ts|tsx)$/.test(f)) {
+			const strip = stripTypeScriptTypes;
+			if (typeof strip !== "function") continue;
+			source = strip(source);
+		}
+		// Parse as a module first, then as a script. vm.Script alone is
+		// script-mode and rejects every ESM file ("Unexpected token 'export'"),
+		// which silently excluded most real repos from the syntax check.
+		if (!parses(source, f)) {
+			console.error(relative(root, f) + " does not parse");
+			bad++;
+		}
 	} catch (e) {
 		console.error(relative(root, f) + " does not parse: " + e.message);
 		bad++;
@@ -432,6 +478,7 @@ function dockerRun(
 				"/work",
 				DOCKER_IMAGE,
 				"node",
+				"--experimental-vm-modules",
 				entry,
 			],
 			{ stdio: ["ignore", "pipe", "pipe"] },
@@ -448,7 +495,7 @@ function localRun(
 	// Containment-lite: empty environment (no inherited secrets), isolated cwd,
 	// hard timeout. Documented as weaker than docker — used only for dev.
 	return collect(
-		spawn(process.execPath, [entry], {
+		spawn(process.execPath, ["--experimental-vm-modules", entry], {
 			cwd: dir,
 			env: {},
 			stdio: ["ignore", "pipe", "pipe"],

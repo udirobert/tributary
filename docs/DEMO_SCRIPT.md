@@ -1,6 +1,6 @@
 # Tributary — Demo Video Script (target runtime: 6 min)
 
-**Project:** Tributary, a coordination layer for thousands of agents working on one codebase — many tributaries, one trunk.
+**Project:** Tributary, a coordination layer for many agents working on one codebase — many tributaries, one trunk.
 **Challenge:** Cloudflare "Build the next GitHub" (Oct 2026). For the Vultr Agent Rush Challenge 1 video, use the beats in `docs/VULTR_SUBMISSION.md` — this script is the Cloudflare-specific cut.
 **Format:** Screen capture + voiceover. Two terminals and a browser dashboard.
 **Tone:** Confident, dry, technical. No hype. Let the dashboard counters do the work.
@@ -28,7 +28,7 @@
 
 Cut straight to the dashboard at `127.0.0.1:8787`. All counters at zero. Trunk green.
 
-> VO: _(silence for 3s, then)_ "This is a coordination console for thousands of agents
+> VO: _(silence for 3s, then)_ "This is a coordination console for many agents
 > working on one codebase. We're going to start it from zero."
 
 > VO: "And it doesn't leave you guessing. With nothing running it tells you the

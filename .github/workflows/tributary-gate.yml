@@ -1,0 +1,23 @@
+name: Tributary gate
+
+# Dogfooding: this repo gates its own PRs with its own action. For other
+# repos the same shape works once the action is published — or by vendoring
+# action.yml + scripts/ + src/ and pointing `uses:` at the vendored path.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the gate diffs findings against the base commit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: ./

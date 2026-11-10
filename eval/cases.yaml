@@ -1,0 +1,409 @@
+# Tributary benchmark corpus — the source of truth for eval/runner.ts.
+#
+# Every case is a labelled scenario with an EXPECTED verdict. The runner drives
+# the real pipeline (mergeBranches / runSemanticGate / the sandbox gate /
+# ClaimRegistry) and records what actually happened, so the benchmark measures
+# the product rather than a description of it.
+#
+# Verdict vocabulary — the four outcomes the confluence can produce:
+#
+#   landed              clean merge, gate green, trunk advances
+#   conflict_resolved   git conflict, resolver supplied content, retry landed
+#   rejected            refused before or at the gate; trunk never moves
+#   queued              watershed refused the claim; no merge attempted
+#
+# The interesting number is not the match rate. It is `false_land`: a case the
+# pipeline landed that should have been rejected. A merge queue that lands
+# broken code has failed at its only job.
+
+meta:
+  name: tributary-benchmark
+  version: 1
+  # Cases are independent: each builds its own MemoryFS repo from `trunk`.
+  # Nothing carries between cases, so order does not affect the result.
+
+# ── 1. Clean non-overlapping merges ────────────────────────────────────────
+# The baseline. If these do not land, nothing else matters.
+
+cases:
+  - id: clean-01
+    category: clean_merge
+    title: Disjoint file edits merge cleanly
+    trunk:
+      a.txt: "alpha\n"
+      b.txt: "beta\n"
+    task:
+      a.txt: "alpha edited by task\n"
+    concurrent:
+      b.txt: "beta edited on trunk\n"
+    expect: landed
+
+  - id: clean-02
+    category: clean_merge
+    title: New file added, nothing touched
+    trunk:
+      a.txt: "alpha\n"
+    task:
+      src/new.js: "exports.added = () => 1;\n"
+    expect: landed
+
+  - id: clean-03
+    category: clean_merge
+    title: Two new files in different directories
+    trunk:
+      a.txt: "alpha\n"
+    task:
+      src/one.js: "exports.one = 1;\n"
+      lib/two.js: "exports.two = 2;\n"
+    expect: landed
+
+  - id: clean-04
+    category: clean_merge
+    title: Task edits a file trunk did not touch
+    trunk:
+      a.txt: "alpha\n"
+      b.txt: "beta\n"
+      c.txt: "gamma\n"
+    task:
+      c.txt: "gamma edited\n"
+    concurrent:
+      a.txt: "alpha edited on trunk\n"
+    expect: landed
+
+  - id: clean-05
+    category: clean_merge
+    title: Adjacent but non-overlapping lines in one file
+    trunk:
+      notes.md: "line one\nline two\nline three\nline four\n"
+    task:
+      notes.md: "line one\nline two\nline three\nline four edited by task\n"
+    concurrent:
+      notes.md: "line one edited on trunk\nline two\nline three\nline four\n"
+    expect: landed
+
+  # ── 2. Same-line conflicts ─────────────────────────────────────────────────
+  # Git sees these. The resolver supplies the merged text and the retry lands.
+
+  - id: conflict-01
+    category: same_line_conflict
+    title: Both sides rewrite the same line
+    trunk:
+      a.txt: "original\n"
+    task:
+      a.txt: "task version\n"
+    concurrent:
+      a.txt: "trunk version\n"
+    expect: conflict_resolved
+
+  - id: conflict-02
+    category: same_line_conflict
+    title: Both sides rewrite the same line in a source file
+    trunk:
+      src/index.js: "exports.value = 1;\n"
+    task:
+      src/index.js: "exports.value = 2;\n"
+    concurrent:
+      src/index.js: "exports.value = 3;\n"
+    expect: conflict_resolved
+
+  - id: conflict-03
+    category: same_line_conflict
+    title: Conflict in one file, clean edit in another
+    trunk:
+      a.txt: "original\n"
+      b.txt: "beta\n"
+    task:
+      a.txt: "task version\n"
+      b.txt: "beta from task\n"
+    concurrent:
+      a.txt: "trunk version\n"
+    expect: conflict_resolved
+
+  - id: conflict-04
+    category: same_line_conflict
+    title: Both sides delete and rewrite the same block
+    trunk:
+      config.json: '{\n  "port": 8787\n}\n'
+    task:
+      config.json: '{\n  "port": 9000\n}\n'
+    concurrent:
+      config.json: '{\n  "port": 9100\n}\n'
+    expect: conflict_resolved
+
+  # ── 3. Semantic signature-change conflicts ─────────────────────────────────
+  # THE DIFFERENTIATOR. Git merges these clean — the files are textually
+  # disjoint — and the merged tree is still broken, because a signature changed
+  # in one file and a caller in another was never updated. A plain merge queue
+  # lands every one of these. Tributary's acorn arity gate does not.
+  #
+  # `expect: rejected` here means: git said clean, the semantic gate refused.
+
+  - id: semantic-01
+    category: semantic_conflict
+    title: Callee gains a parameter, caller unchanged
+    trunk:
+      greet.js: "exports.greet = (name) => `Hello, ${name}!`;\n"
+      handlers.js: "const r = () => greet(\"world\");\n"
+    task:
+      greet.js: "exports.greet = (name, greeting) => `${greeting}, ${name}!`;\n"
+    expect: rejected
+    expect_reason_contains: "greet"
+
+  - id: semantic-02
+    category: semantic_conflict
+    title: Callee loses a parameter, caller still passes two
+    trunk:
+      format.js: "exports.format = (value, unit) => `${value}${unit}`;\n"
+      report.js: "const line = () => format(12, \"px\");\n"
+    task:
+      format.js: "exports.format = (value) => `${value}`;\n"
+    expect: rejected
+    expect_reason_contains: "format"
+
+  - id: semantic-03
+    category: semantic_conflict
+    title: Function declaration gains a parameter, caller in a third file
+    trunk:
+      util.js: "function clamp(n) {\n  return n;\n}\nmodule.exports = { clamp };\n"
+      a.js: "const x = () => clamp(5);\n"
+      b.js: "const y = () => clamp(7);\n"
+    task:
+      util.js: "function clamp(n, min, max) {\n  return n;\n}\nmodule.exports = { clamp };\n"
+    expect: rejected
+    expect_reason_contains: "clamp"
+
+  - id: semantic-04
+    category: semantic_conflict
+    title: Signature change in a file the task never declared
+    trunk:
+      api.js: "exports.fetchUser = (id) => id;\n"
+      page.js: "const u = () => fetchUser(42);\n"
+    task:
+      api.js: "exports.fetchUser = (id, options) => id;\n"
+    expect: rejected
+    expect_reason_contains: "fetchUser"
+
+  - id: semantic-05
+    category: semantic_conflict
+    title: TypeScript signature change breaks a .ts caller
+    trunk:
+      greet.ts: "export function greet(name: string): string {\n  return name;\n}\n"
+      handlers.ts: "const r = () => greet(\"world\");\n"
+    task:
+      greet.ts: "export function greet(name: string, greeting: string): string {\n  return greeting + name;\n}\n"
+    expect: rejected
+    expect_reason_contains: "greet"
+
+  - id: semantic-06
+    category: semantic_conflict
+    title: TSX component gains a prop, caller unchanged
+    trunk:
+      Button.tsx: "export function Button(label: string) {\n  return label;\n}\n"
+      App.tsx: "const el = () => Button(\"go\");\n"
+    task:
+      Button.tsx: "export function Button(label: string, size: number) {\n  return label;\n}\n"
+    expect: rejected
+    expect_reason_contains: "Button"
+
+  - id: semantic-07
+    category: semantic_conflict
+    title: TypeScript callee changes, JavaScript caller breaks
+    trunk:
+      api.ts: "export function fetchUser(id: number): number {\n  return id;\n}\n"
+      legacy.js: "const u = () => fetchUser(42);\n"
+    task:
+      api.ts: "export function fetchUser(id: number, opts: object): number {\n  return id;\n}\n"
+    expect: rejected
+    expect_reason_contains: "fetchUser"
+
+  # ── 4. Footprint violations ────────────────────────────────────────────────
+  # The watershed's promise, enforced against what was pushed. These never reach
+  # a merge: the confluence refuses them before spending one.
+
+  - id: footprint-01
+    category: footprint_violation
+    title: Task writes a file it never declared
+    trunk:
+      src/auth.js: "exports.login = () => 1;\n"
+      src/db.js: "exports.connect = () => 1;\n"
+    task:
+      src/auth.js: "exports.login = () => 2;\n"
+      src/db.js: "exports.connect = () => 2;\n"
+    declared:
+      - src/auth.js
+    expect: rejected
+    expect_reason_contains: "outside its declared footprint"
+
+  - id: footprint-02
+    category: footprint_violation
+    title: Task edits README outside a code-only footprint
+    trunk:
+      README.md: "# project\n"
+      src/index.js: "exports.x = 1;\n"
+    task:
+      README.md: "# project — containment badge\n"
+      src/index.js: "exports.x = 2;\n"
+    declared:
+      - src/index.js
+    expect: rejected
+    expect_reason_contains: "outside its declared footprint"
+
+  - id: footprint-03
+    category: footprint_violation
+    title: Task declares nothing and writes anyway
+    trunk:
+      src/index.js: "exports.x = 1;\n"
+    task:
+      src/index.js: "exports.x = 2;\n"
+    declared: []
+    expect: rejected
+    expect_reason_contains: "outside its declared footprint"
+
+  # ── 5. Verification-failing changes ────────────────────────────────────────
+  # Merge is clean, git is happy, the merged tree does not work. The sandbox gate
+  # executes the repo's own verification command and refuses the landing.
+
+  - id: verify-01
+    category: verification_failure
+    title: Merged tree fails its own verify script
+    trunk:
+      package.json: '{"name":"fixture","version":"0.0.0"}'
+      src/index.js: "exports.connect = () => ({ query: () => 1 });\n"
+      verify.cjs: |
+        const { connect } = require("./src/index.js");
+        const client = connect();
+        if (typeof client.query !== "function") {
+          console.error("db.connect() did not return a query client");
+          process.exit(1);
+        }
+        console.log("verify ok");
+    task:
+      src/index.js: "exports.connect = () => ({ run: () => 1 });\n"
+    expect: rejected
+    expect_reason_contains: "did not return a query client"
+
+  - id: verify-02
+    category: verification_failure
+    title: Merged tree does not parse
+    trunk:
+      package.json: '{"name":"fixture","version":"0.0.0"}'
+      src/index.js: "exports.x = 1;\n"
+      verify.cjs: "console.log('ok');\n"
+    task:
+      src/index.js: "exports.x = {{{\n"
+    expect: rejected
+    expect_reason_contains: "does not parse"
+
+  - id: verify-03
+    category: verification_failure
+    title: Merged package.json is invalid JSON
+    trunk:
+      package.json: '{"name":"fixture","version":"0.0.0"}'
+      src/index.js: "exports.x = 1;\n"
+    task:
+      package.json: "{ definitely not json"
+    expect: rejected
+
+  - id: verify-04
+    category: verification_failure
+    title: Merged tree throws at verification time
+    trunk:
+      package.json: '{"name":"fixture","version":"0.0.0"}'
+      src/index.js: "exports.run = () => 1;\n"
+      verify.cjs: |
+        const m = require("./src/index.js");
+        m.run();
+        console.log("verify ok");
+    task:
+      src/index.js: "exports.run = () => { throw new Error('boom at runtime'); };\n"
+    expect: rejected
+    expect_reason_contains: "boom at runtime"
+
+  # ── 6. Overlapping footprint storms ────────────────────────────────────────
+  # The watershed under contention. These drive the real ClaimRegistry: the
+  # expected behaviour is that overlapping claims queue rather than collide, and
+  # that a released claim promotes the waiter.
+
+  - id: watershed-01
+    category: footprint_storm
+    title: Two agents claim the same file, second queues
+    claims:
+      - agent: agent-alpha
+        files: [src/auth.js]
+      - agent: agent-bravo
+        files: [src/auth.js]
+    expect: queued
+
+  - id: watershed-02
+    category: footprint_storm
+    title: Three agents, one shared file, two queue
+    claims:
+      - agent: agent-alpha
+        files: [src/auth.js, src/db.js]
+      - agent: agent-bravo
+        files: [src/db.js]
+      - agent: agent-charlie
+        files: [src/db.js, src/util.js]
+    expect: queued
+
+  - id: watershed-03
+    category: footprint_storm
+    title: Disjoint claims all grant immediately
+    claims:
+      - agent: agent-alpha
+        files: [src/auth.js]
+      - agent: agent-bravo
+        files: [src/db.js]
+      - agent: agent-charlie
+        files: [src/util.js]
+    expect: landed
+
+  # ── 7. Hostile probes ──────────────────────────────────────────────────────
+  # Containment, measured through the same boundary the merge gate uses. These
+  # are the "Blast Radius Zero" cases: the gate must survive them and report
+  # what the environment actually prevented.
+
+  - id: hostile-01
+    category: hostile_probe
+    title: Merged tree attempts network egress during verification
+    trunk:
+      package.json: '{"name":"fixture","version":"0.0.0"}'
+      src/index.js: "exports.x = 1;\n"
+      verify.cjs: |
+        const https = require("node:https");
+        const req = https.get("https://example.com", () => {
+          console.log("EGRESS_SUCCEEDED");
+          process.exit(0);
+        });
+        req.on("error", (e) => {
+          console.log("EGRESS_BLOCKED " + e.code);
+          process.exit(1);
+        });
+        req.setTimeout(4000, () => { console.log("EGRESS_TIMEOUT"); process.exit(1); });
+    task:
+      src/index.js: "exports.x = 2;\n"
+    requires: docker
+    expect: rejected
+    expect_reason_contains: "EGRESS"
+
+  - id: hostile-02
+    category: hostile_probe
+    title: Merged tree attempts to read a host secret
+    trunk:
+      package.json: '{"name":"fixture","version":"0.0.0"}'
+      src/index.js: "exports.x = 1;\n"
+      verify.cjs: |
+        const fs = require("node:fs");
+        try {
+          fs.readFileSync("/etc/shadow", "utf8");
+          console.log("SECRET_READ_OK");
+          process.exit(0);
+        } catch (e) {
+          console.log("SECRET_READ_BLOCKED " + e.code);
+          process.exit(1);
+        }
+    task:
+      src/index.js: "exports.x = 2;\n"
+    requires: docker
+    expect: rejected
+    expect_reason_contains: "SECRET_READ"
